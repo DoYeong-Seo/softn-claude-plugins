@@ -21,10 +21,10 @@ softn-claude-plugins/
 ├── plugins/
 │   ├── blog-editor/
 │   │   ├── .claude-plugin/plugin.json
-│   │   └── skills/blog-editor/   # SKILL.md, BLOCKS.md, ENDPOINTS.md, block_builder.py, README.md
+│   │   └── skills/blog-editor/   # SKILL.md, BLOCKS.md, ENDPOINTS.md, block_builder.py, README.md, project.example.json
 │   └── erd-design/
 │       ├── .claude-plugin/plugin.json
-│       └── skills/erd-design/    # SKILL.md, NAMING.md, CONVENTIONS.md, ENDPOINTS.md, DDL_EXPORT.md, EXAMPLES.md, ddl_export.py, requirements.txt
+│       └── skills/erd-design/    # SKILL.md, NAMING.md, CONVENTIONS.md, ENDPOINTS.md, DDL_EXPORT.md, EXAMPLES.md, ddl_export.py, requirements.txt, README.md, project.example.json
 └── README.md
 ```
 

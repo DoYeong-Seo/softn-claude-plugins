@@ -35,20 +35,27 @@ BLOGN_PAT_TOKEN 환경변수가 설정되지 않았습니다.
 
 ## 기본 ERD 프로젝트
 
-`.claude/skills/erd-design/project.json` 존재 시, 입력에 프로젝트가 명시되지 않으면 그 값을 기본 대상으로 사용한다.
+대상 ERD 프로젝트(`projectId`)는 **설정 파일**에서 읽는다. 스킬 본문에 projectId를 하드코딩하지 않으므로, **프로젝트마다·사용자마다 다른 ERD 프로젝트**를 쓸 수 있다. 입력에 프로젝트가 명시되지 않으면 다음 **순서대로** 설정 파일을 찾아 첫 번째로 발견된 값을 기본 대상으로 사용한다.
+
+1. `<현재 작업 디렉토리>/.claude/skills/erd-design/project.json` — **프로젝트별 설정** (해당 프로젝트에서만 적용, 최우선)
+2. `~/.claude/skills/erd-design/project.json` — **사용자 전역 설정** (프로젝트 설정이 없을 때 fallback)
+
+설정 파일은 특정 projectId를 담으므로 플러그인에 번들되지 않으며, 사용자가 직접 생성한다. 형식·예시는 플러그인의 [`project.example.json`](project.example.json) 참고.
 
 ```json
 {
-  "projectId": "16f77e95-47f6-42e8-908a-50dc342aacdd",
-  "projectName": "소프트앤 BLOGN",
+  "projectId": "<UUID — 필수>",
+  "projectName": "<프로젝트 표시명 — 선택, 안내 메시지용>",
   "targetDbms": "MySQL"
 }
 ```
 
 적용 규칙:
-- 입력에 다른 프로젝트가 명시되면(이름·ID 매칭) 입력값 우선.
-- 첫 호출 직전 "기본 프로젝트 `<projectName>`을 사용합니다." 1회 안내.
-- 파일이 없거나 비어 있으면 list API → 후보 좁히기 → 모호하면 사용자 확인.
+- `projectId`만 필수. `projectName`은 안내용, `targetDbms`는 DDL 생성 기본 엔진(미지정 시 MySQL).
+- **프로젝트 설정(1)이 있으면 전역 설정(2)보다 항상 우선**한다. (같은 머신에서 프로젝트마다 다른 ERD, 사용자마다 다른 전역 기본값 공존 가능.)
+- 입력에 다른 프로젝트가 명시되면(이름·ID 매칭) 설정 파일보다 입력값 우선.
+- 첫 호출 직전 "기본 프로젝트 `<projectName 또는 projectId>`을 사용합니다." 1회 안내.
+- 두 파일 모두 없거나 `projectId`가 비어 있으면 list API(`GET /api/v1/erd/project/list`) → 후보 좁히기 → 모호하면 사용자 확인. 확정 후 "이 프로젝트를 설정 파일(`./.claude/skills/erd-design/project.json`)로 저장할까요?"를 제안할 수 있다.
 - "프로젝트 목록", "내 ERD 전부" 처럼 명확히 전체를 가리키면 기본값 비적용.
 
 ## 프로젝트 컨벤션
