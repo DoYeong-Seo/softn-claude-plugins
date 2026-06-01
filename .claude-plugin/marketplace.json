@@ -18,6 +18,11 @@
       "name": "erd-design",
       "source": "./plugins/erd-design",
       "description": "BlogN ERD 설계 도구 REST API를 자연어로 호출 — ERD 프로젝트/다이어그램/테이블/컬럼/관계 메타데이터 관리 및 MySQL DDL 생성"
+    },
+    {
+      "name": "object-generate",
+      "source": "./plugins/object-generate",
+      "description": "MySQL 테이블로부터 기본 Java 객체(VO/EVO/DAO/Service)와 MyBatis SQL 매핑을 자동 생성 — 베이스 패키지·DB 접속은 프로젝트별 설정에서 읽음"
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "basePackage": "com.softn.blogn",
+  "mysql": {
+    "host": "your-mysql-host",
+    "user": "your-db-user",
+    "database": "your_database"
+  },
+  "outputDir": "temp"
+}

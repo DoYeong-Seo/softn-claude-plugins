@@ -11,6 +11,7 @@
 |----------|------|------|
 | `blog-editor` | 1.0.0 | BlogN 블로그/포스트 관리 REST API를 자연어로 호출 — 포스트 CRUD, Editor.js 블록 본문 작성·저장, 파일 업로드, Markdown 양방향 변환 |
 | `erd-design` | 1.0.0 | BlogN ERD 설계 도구 REST API를 자연어로 호출 — ERD 프로젝트/다이어그램/테이블/컬럼/관계 메타데이터 관리 및 MySQL DDL 생성 |
+| `object-generate` | 1.0.0 | MySQL 테이블로부터 Java 객체(VO/EVO/DAO/Service) + MyBatis SQL 매핑 자동 생성 — 베이스 패키지·DB 접속은 프로젝트별 설정 |
 
 ## 디렉토리 구조
 
@@ -22,9 +23,12 @@ softn-claude-plugins/
 │   ├── blog-editor/
 │   │   ├── .claude-plugin/plugin.json
 │   │   └── skills/blog-editor/   # SKILL.md, BLOCKS.md, ENDPOINTS.md, block_builder.py, README.md, project.example.json
-│   └── erd-design/
+│   ├── erd-design/
+│   │   ├── .claude-plugin/plugin.json
+│   │   └── skills/erd-design/    # SKILL.md, NAMING.md, CONVENTIONS.md, ENDPOINTS.md, DDL_EXPORT.md, EXAMPLES.md, ddl_export.py, requirements.txt, README.md, project.example.json
+│   └── object-generate/
 │       ├── .claude-plugin/plugin.json
-│       └── skills/erd-design/    # SKILL.md, NAMING.md, CONVENTIONS.md, ENDPOINTS.md, DDL_EXPORT.md, EXAMPLES.md, ddl_export.py, requirements.txt, README.md, project.example.json
+│       └── skills/object-generate/  # SKILL.md, README.md, generate_code.py, requirements.txt, project.example.json
 └── README.md
 ```
 
