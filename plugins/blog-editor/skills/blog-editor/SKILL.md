@@ -147,6 +147,7 @@ claude.ai에는 환경변수가 없다. 사용자가 첫 호출에서 본 스킬
 | **이미지 삽입** | "이 png 파일 본문에 넣어줘", "이미지 추가" | `upload_image(path, post_id=...)` → image 블록 dict, blocks 에 append 후 `put_post_contents` |
 | **첨부 파일 삽입** | "이 pdf 첨부해줘", "파일 붙여" | `upload_attachment(path, post_id=...)` → attaches 블록 dict, blocks 에 append 후 `put_post_contents` |
 | **YouTube/Vimeo 임베드** | "이 유튜브 영상 본문에 임베드", "vimeo 링크 추가" | `embed(url)` → embed 블록 dict (업로드 불필요) |
+| **위키링크/백링크** | "이 글을 OO 포스트에 연결", "내부 링크 걸어줘", "[[ 자동완성", "이 글 역링크 보여줘" | 대상은 `wiki-search`로 탐색 → 본문 블록 텍스트에 `<a class="wikilink" data-post-id="…" data-blog-id="…">` 앵커 삽입 후 `/contents` 저장(백엔드가 `BLOG_POST_LINK` 자동 동기화). 역링크 조회는 `/backlinks`. 상세는 [BLOCKS.md §4.1](BLOCKS.md) |
 | **댓글/좋아요/분류** | "댓글 달아줘", "좋아요 눌러줘", "분류 만들어줘" | 해당 엔드포인트 호출 |
 
 ### 2) 의도 → API 호출 매핑
@@ -350,7 +351,9 @@ open("backup.md", "w", encoding="utf-8").write(
    - `postStatus`는 선택(기본 `SAVED`). `PUBLISHED`/`DRAFT`로 보내면 상태 전환 효과 → 사용자 사전 확인.
 4. **결과 반영** — 응답 `data[0].postContents`(서버가 재구성한 Editor.js 형식)와 새 `lockTimestamp`를 사용자에게 보고.
 
-**서버 동작 요약**: 클라이언트 `lockTimestamp` **사전 검증**(불일치 시 즉시 409) → 기존 `BLOG_POST_BLOCK` 모든 행 삭제 → `blocks[]`를 BLOCK_INDEX 0..N으로 재INSERT → 포스트 상태를 EDIT로 갱신(`BLOG_POST.LOCK_TIMESTAMP` 갱신됨) → 갱신된 `LOCK_TIMESTAMP`를 사용해 `BLOG_POST.POST_CONTENTS` 컬럼에 풀 JSON 스냅샷 저장 → 편집 로그 기록. 사전 검증 단계에서 충돌 시 어떤 변경도 일어나지 않는다.
+**서버 동작 요약**: 클라이언트 `lockTimestamp` **사전 검증**(불일치 시 즉시 409) → 기존 `BLOG_POST_BLOCK` 모든 행 삭제 → `blocks[]`를 BLOCK_INDEX 0..N으로 재INSERT → **위키링크 인덱스 동기화**(각 블록 HTML을 `WikiLinkParser`로 파싱해 `<a class="wikilink" data-post-id data-blog-id>` 앵커를 추출·유효 대상 필터링 후 `BLOG_POST_LINK`에 일괄 반영) → 포스트 상태를 EDIT로 갱신(`BLOG_POST.LOCK_TIMESTAMP` 갱신됨) → 갱신된 `LOCK_TIMESTAMP`를 사용해 `BLOG_POST.POST_CONTENTS` 컬럼에 풀 JSON 스냅샷 저장 → 편집 로그 기록. 사전 검증 단계에서 충돌 시 어떤 변경도 일어나지 않는다.
+
+> **백링크는 `/contents` 저장의 부수효과로 자동 생성된다.** 별도 링크 등록 API가 없으므로, 다른 글을 인용·연결하려면 본문 블록에 위키링크 앵커(§위 [BLOCKS.md §4.1])를 심어 저장하면 된다. 앵커를 빼고 저장하면 해당 백링크도 사라진다(매 저장 시 전체 재계산).
 
 > ⚠️ **2026-05-19 이전 동작과의 차이**: 이전에는 서버가 lockTimestamp를 `replaceAllBlocks` 이후에 비교했기 때문에, 포스트를 막 생성하고 본문 PUT을 첫 시도하는 흐름에서도 자기 자신의 부수효과로 인해 409가 발생했다. 현재는 사전 검증으로 바뀌어 **POST 응답의 lockTimestamp를 그대로 첫 본문 PUT에 사용 가능**하다.
 

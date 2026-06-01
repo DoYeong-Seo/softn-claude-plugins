@@ -317,11 +317,42 @@ paragraph / header / list / checklist / quote 의 텍스트 영역 안에서 사
 | `<b>` | 굵게 | `<b>강조</b>` |
 | `<i>` | 이탤릭 | `<i>기울임</i>` |
 | `<u>` | 밑줄 | `<u>밑줄</u>` |
-| `<a href="...">` | 링크 | `<a href="https://...">링크</a>` |
+| `<a href="...">` | 외부/일반 링크 | `<a href="https://...">링크</a>` |
+| `<a class="wikilink" …>` | **위키링크(내부 포스트 링크 → 백링크 생성)** | `<a class="wikilink" data-post-id="BP..." data-blog-id="...">대상 글</a>` (아래 §4.1) |
 | `<mark class="cdx-marker">` | 형광펜 (Marker tool) | `<mark class="cdx-marker">하이라이트</mark>` |
 | `<code class="inline-code">` | 인라인 코드 (InlineCode tool) | `<code class="inline-code">x = 1</code>` |
 
 → 데이터 저장 시 이스케이프된 사용자 입력은 `<` → `&lt;` 처럼 처리되지 않고 **HTML 그대로 저장**된다 (Editor.js가 contentEditable 결과를 그대로 직렬화).
+
+### 4.1 위키링크 앵커 (백링크 자동 생성)
+
+다른 포스트를 가리키는 **내부 링크**는 일반 `<a href>` 가 아니라 **위키링크 앵커**로 심는다. 본문을 `PUT .../posts/{postId}/contents` 로 저장하면 **백엔드가 본문 HTML의 위키링크 앵커를 자동 파싱해 `BLOG_POST_LINK`(역링크 인덱스)에 동기화**한다. 별도의 링크 등록 API 호출이 필요 없다.
+
+**앵커 형식** — 텍스트 블록(paragraph/header/list/checklist/quote)의 `data.text` 안에 인라인 HTML로 삽입:
+
+```html
+<a class="wikilink" data-post-id="{대상 postId}" data-blog-id="{대상 blogId}" href="{href}">표시 텍스트</a>
+```
+
+| 속성 | 필수 | 설명 |
+|------|------|------|
+| `class="wikilink"` | ✅ | 파서가 위키링크를 식별하는 기준. 없으면 일반 링크로 취급되어 백링크가 생성되지 않는다. |
+| `data-post-id` | ✅ | 대상 포스트 UUID. 파서가 추출하는 핵심 키. |
+| `data-blog-id` | ✅ | 대상 블로그 UUID. |
+| `href` | 권장 | 렌더링 시 이동 경로. 보통 `wiki-search` 결과의 `href` 를 그대로 사용. |
+
+**작성 흐름:**
+
+1. **대상 탐색** — `GET /api/v1/blog/{blogId}/posts/wiki-search?q=<검색어>&limit=8` (자동완성). 결과 `data[]` 원소 `{href, name, postId, blogId, ...}` 에서 연결할 포스트를 고른다.
+2. **앵커 삽입** — 위 메타로 `<a class="wikilink" data-post-id … data-blog-id … href …>name</a>` 를 블록 `text` 에 끼워 넣는다.
+3. **저장** — `PUT .../posts/{postId}/contents` 로 본문 저장. 백엔드가 모든 블록을 `WikiLinkParser` 로 파싱 → 유효 대상만 필터링 → `BLOG_POST_LINK` 에 일괄 동기화(기존 링크는 교체)한다.
+4. **역링크 조회** — `GET /api/v1/blog/{blogId}/posts/{postId}/backlinks` 로 이 포스트를 참조하는 글 목록을 읽는다.
+
+**주의:**
+- 동기화는 **본문 저장(`/contents`) 시점에 전체 재계산**된다. 앵커를 지우고 저장하면 해당 링크도 인덱스에서 사라진다.
+- 존재하지 않거나 접근 불가한 `data-post-id` 는 백엔드 필터링 단계에서 제외된다 (앵커 텍스트는 본문에 남지만 백링크는 생성 안 됨).
+- `class="wikilink"`·`data-*` 가 빠진 일반 `<a href>` 는 백링크 대상이 아니다.
+- Markdown 변환(`markdown_to_document`)에는 위키링크 토큰이 없다 — 위키링크는 블록 JSON에 직접 앵커 HTML로 작성한다.
 
 ---
 
