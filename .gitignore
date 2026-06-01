@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Secrets / 프로젝트별 로컬 설정 (스킬 런타임에 읽음 — 절대 커밋 금지)
+secrets.json
+**/secrets.json
+.env
+.env.*
+
+# 프로젝트별 기본 대상 (특정 blogId/projectId 포함) — 사용자 프로젝트에서 각자 생성
+project.json
+**/skills/*/project.json
+
+# 스킬 산출물
+temp/
+**/temp/erd-export/
+
+# Claude Code 로컬 설정 (머신별)
+.claude/settings.local.json
+
+# OS / 에디터
+.DS_Store
+*.swp

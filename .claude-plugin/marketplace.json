@@ -1,0 +1,23 @@
+{
+  "name": "softn-tools",
+  "owner": {
+    "name": "소프트앤 개발팀",
+    "email": "dev@softn.kr"
+  },
+  "metadata": {
+    "description": "소프트앤 사내 Claude Code 플러그인 마켓플레이스",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "blog-editor",
+      "source": "./plugins/blog-editor",
+      "description": "BlogN 블로그/포스트 관리 REST API를 자연어로 호출 — 포스트 CRUD, Editor.js 블록 본문 작성·저장, 파일 업로드, Markdown 양방향 변환"
+    },
+    {
+      "name": "erd-design",
+      "source": "./plugins/erd-design",
+      "description": "BlogN ERD 설계 도구 REST API를 자연어로 호출 — ERD 프로젝트/다이어그램/테이블/컬럼/관계 메타데이터 관리 및 MySQL DDL 생성"
+    }
+  ]
+}
