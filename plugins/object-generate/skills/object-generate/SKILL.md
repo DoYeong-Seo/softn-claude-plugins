@@ -67,7 +67,32 @@ export MYSQL_USER="<project.json mysql.user>"
 export BLOGN_DATABASE="<project.json mysql.database>"
 # MYSQL_PASSWORD 는 사용자가 미리 설정한 값을 사용
 ```
-> `project.json`이 없거나 `basePackage`/`mysql`이 비어 있으면 사용자에게 설정 파일 생성을 안내하고 중단한다. (`project.example.json` 복사 안내)
+> `project.json`이 없거나 `basePackage`/`mysql`이 비어 있으면 아래 [프로젝트 설정 부트스트랩](#프로젝트-설정-부트스트랩--파일이-없을-때-생성-유도)으로 진입한다.
+
+#### 프로젝트 설정 부트스트랩 — 파일이 없을 때 생성 유도
+
+프로젝트별 설정(`<현재 작업 디렉토리>/.claude/skills/object-generate/project.json`)이 없거나 `basePackage`/`mysql`이 비어 있으면, **이 프로젝트 폴더에 설정 파일을 만들도록 1회 유도**한다. 같은 머신의 다른 프로젝트와 패키지/DB가 섞이지 않게 하기 위함이다.
+
+**언제 유도하는가 (트리거 시점):**
+- **코드 생성을 실행하기 직전에만** 유도한다(이 스킬의 변경 작업은 사실상 코드 생성 1종). `basePackage`/`mysql.*` 가 없으면 스크립트를 돌릴 수 없으므로 생성을 진행하기 전에 처리한다.
+- `basePackage`/DB 접속은 list API로 자동 발견할 수 없으므로 **사용자에게서 값을 받아** 채운다. (전역 설정 `~/.claude/skills/object-generate/project.json` 이 있으면 그 값을 fallback 으로 쓰고 유도하지 않는다.)
+- **세션당 1회**. 사용자가 거절하면 다시 묻지 않으며, 설정이 없으면 코드 생성은 불가하므로 중단한다.
+
+**유도 절차:**
+1. **안내 한 줄** — "이 프로젝트에는 object-generate 설정(`./.claude/skills/object-generate/project.json`)이 없습니다. 베이스 패키지와 DB 접속을 정해 두면 바로 생성할 수 있습니다. 지금 만들까요?"
+2. **동의하면 값 수집** — `basePackage`(예: `com.softn.blogn`), `mysql.host` / `mysql.user` / `mysql.database`(필수), `outputDir`(선택, 기본 `temp`)를 사용자에게서 받는다. **비밀번호는 받지 않는다** — 환경변수 `MYSQL_PASSWORD`로만 주입함을 안내(핵심 원칙 #2).
+3. **`Write` 도구로 파일 생성** — 경로 `<현재 작업 디렉토리>/.claude/skills/object-generate/project.json`. 상위 디렉토리가 없으면 함께 만든다. 받은 필수값과 선택값만 채우고, 비밀번호는 절대 넣지 않는다.
+   ```json
+   {
+     "basePackage": "<받은 값>",
+     "mysql": { "host": "<받은 값>", "user": "<받은 값>", "database": "<받은 값>" },
+     "outputDir": "temp"
+   }
+   ```
+4. **생성 보고** — "프로젝트 설정을 저장했습니다: `./.claude/skills/object-generate/project.json`." 안내 후, `MYSQL_PASSWORD` 가 환경변수에 설정돼 있는지 확인하고 원래 요청한 코드 생성을 이어서 진행한다.
+5. **거절 시** — 파일을 만들지 않는다. 전역 설정이 있으면 그것을 쓰고, 둘 다 없으면 `basePackage`/`mysql` 없이는 생성이 불가하므로 [`project.example.json`](project.example.json) 복사 안내 후 중단한다.
+
+> 형식·예시 필드는 플러그인의 [`project.example.json`](project.example.json) 참고. 이 파일은 DB 접속 정보를 담으므로(비밀번호 제외) 커밋 대상에서 제외하거나 `.gitignore`에 추가하도록 안내할 수 있다.
 
 ### 3) 스크립트 실행
 

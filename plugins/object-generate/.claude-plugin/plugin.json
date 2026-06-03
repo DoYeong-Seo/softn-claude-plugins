@@ -1,6 +1,6 @@
 {
   "name": "object-generate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MySQL 테이블로부터 기본 Java 객체(VO/EVO/DAO/Service)와 MyBatis SQL 매핑을 자동 생성하는 스킬. 전자정부프레임워크 구조를 따르며, 베이스 패키지·DB 접속은 프로젝트별 설정 파일에서 읽는다.",
   "author": {
     "name": "서도영",
