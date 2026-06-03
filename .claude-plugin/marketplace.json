@@ -23,6 +23,11 @@
       "name": "object-generate",
       "source": "./plugins/object-generate",
       "description": "MySQL 테이블로부터 기본 Java 객체(VO/EVO/DAO/Service)와 MyBatis SQL 매핑을 자동 생성 — 베이스 패키지·DB 접속은 프로젝트별 설정에서 읽음"
+    },
+    {
+      "name": "peer-bus",
+      "source": "./plugins/peer-bus",
+      "description": "Claude Code 세션 간 자율 협업 버스 — 계약 본문은 BlogN, 버스는 트리거(포인터)만. 개발자 PC마다 localhost 자체완결 설치(허브 자동 보장+PC별 토큰)로 백엔드↔프론트 세션이 BlogN 계약을 주고받음. mac/linux/WSL2"
     }
   ]
 }

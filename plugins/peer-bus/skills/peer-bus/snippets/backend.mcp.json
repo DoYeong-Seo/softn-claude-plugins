@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "peer-bus": {
+      "command": "${HOME}/.peer-bus/bin/peer-bus-node",
+      "env": {
+        "NAME": "backend",
+        "PEER_BUS_MODE": "poll"
+      }
+    }
+  }
+}

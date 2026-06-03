@@ -1,0 +1,10 @@
+{
+  "name": "peer-bus",
+  "version": "0.2.0",
+  "description": "Claude Code 세션 간 자율 협업 버스. 계약 본문은 BlogN, 버스는 트리거(포인터)만 나른다. 개발자 PC마다 localhost 자체완결 설치(허브 자동 보장 + PC별 토큰)로 백엔드↔프론트 세션이 BlogN 계약을 주고받는다. mac/linux/WSL2 지원.",
+  "author": {
+    "name": "서도영",
+    "email": "doyeong.seo@softn.kr"
+  },
+  "keywords": ["mcp", "multi-agent", "blogn", "peer-bus", "channels", "softn"]
+}
