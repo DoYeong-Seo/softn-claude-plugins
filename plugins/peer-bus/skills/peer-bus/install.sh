@@ -39,14 +39,15 @@ cat <<EOF
 ✅ 설치 완료.
 
 ──────────────────────────────────────────────────────────────
-다음 .mcp.json 스니펫을 각 레포 루트에 추가하세요 (NAME 만 다릅니다).
+다음 .mcp.json 스니펫을 각 레포 루트에 추가하세요.
+같은 프로젝트의 backend·front 는 NAME 만 다르고 PROJECT 는 같습니다(같은 버스에 모임).
 
 [ 백엔드 레포 / .mcp.json ]
 {
   "mcpServers": {
     "peer-bus": {
       "command": "$WRAPPER",
-      "env": { "NAME": "backend", "PEER_BUS_MODE": "poll" }
+      "env": { "NAME": "backend", "PROJECT": "blogn", "PEER_BUS_MODE": "poll" }
     }
   }
 }
@@ -56,12 +57,17 @@ cat <<EOF
   "mcpServers": {
     "peer-bus": {
       "command": "$WRAPPER",
-      "env": { "NAME": "front:blogn", "PEER_BUS_MODE": "poll" }
+      "env": { "NAME": "front:blogn", "PROJECT": "blogn", "PEER_BUS_MODE": "poll" }
     }
   }
 }
 ──────────────────────────────────────────────────────────────
-· 첫 CC 세션이 뜨면 허브가 자동 기동됩니다 (별도 실행 불필요).
+· 프로젝트 = 버스 단위(포트 분리): PROJECT 가 다르면 다른 포트의 허브에 붙어 구조적으로 격리됩니다.
+  무재부팅으로 프로젝트를 갈아끼워도 이전 프로젝트의 핀·broadcast 가 새지 않습니다.
+  같은 프로젝트의 backend·front 는 반드시 PROJECT 값을 동일하게 두세요(둘이 한 버스에서 만나야 함).
+· 첫 CC 세션이 뜨면 해당 PROJECT 포트의 허브가 자동 기동됩니다 (별도 실행 불필요).
+· 포트는 PROJECT 에서 결정론적으로 파생됩니다(default=:8900). 서로 다른 프로젝트가 같은 포트로
+  충돌하면 env 에 "HUB_PORT":"8901" 처럼 명시해 직접 박으면 됩니다(명시값이 항상 우선).
 · poll 모드라 --dangerously-load-development-channels 불필요. 세션은 유휴 시 read_messages 를 호출합니다.
 · 교체형 프론트(front:erd 등)는 그 레포의 NAME 만 바꾸면 됩니다.
 · push(Channels) 모드로 올릴 땐 env 를 "PEER_BUS_MODE":"push" 로 바꾸고 CC 를

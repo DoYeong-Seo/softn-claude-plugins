@@ -4,6 +4,7 @@
       "command": "${HOME}/.peer-bus/bin/peer-bus-node",
       "env": {
         "NAME": "backend",
+        "PROJECT": "blogn",
         "PEER_BUS_MODE": "poll"
       }
     }

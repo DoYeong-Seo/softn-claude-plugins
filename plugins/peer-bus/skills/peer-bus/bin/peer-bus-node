@@ -2,20 +2,36 @@
 # peer-bus-node — Claude Code 가 .mcp.json 에서 실행하는 진입점 (mac / linux / WSL2 공통)
 #
 # 하는 일:
-#   1) 로컬 공유 토큰 확보 (~/.peer-bus/token, 없으면 생성, 권한 600)
-#   2) 허브가 떠 있는지 확인 → 죽어 있으면 detached 로 기동 (이 프로세스가 죽어도 허브는 생존)
-#   3) bun 으로 peer-bus-node.ts 실행 (stdio MCP 서버)
+#   1) PROJECT 로 이 세션이 붙을 버스(포트)를 결정 (프로젝트 = 버스 단위, 포트 분리)
+#   2) 로컬 공유 토큰 확보 (~/.peer-bus/token, 없으면 생성, 권한 600)
+#   3) 그 포트의 허브가 떠 있는지 확인 → 죽어 있으면 detached 로 기동 (이 프로세스가 죽어도 허브는 생존)
+#   4) bun 으로 peer-bus-node.ts 실행 (stdio MCP 서버)
 #
-# 허브 기동은 포트(:8900) 바인딩이 mutex 역할 — 두 세션이 동시에 띄워도 진 쪽은 EADDRINUSE 로 즉시 종료.
+# 허브 기동은 포트 바인딩이 mutex 역할 — 같은 포트에 두 세션이 동시에 띄워도 진 쪽은 EADDRINUSE 로 즉시 종료.
+# 같은 프로젝트의 backend·front 는 같은 PROJECT 값을 공유해 한 버스(포트)에 모이고, 다른 프로젝트는
+# 다른 포트로 구조적으로 격리된다 — 무재부팅으로 프로젝트를 갈아끼워도 핀·broadcast 가 새지 않는다.
 # WSL2: 백엔드·프론트 CC 세션과 이 스크립트가 모두 같은 distro 안에서 돌아야 localhost 가 일치한다.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PEER_BUS_HOME="${PEER_BUS_HOME:-$HOME/.peer-bus}"
-HUB_PORT="${HUB_PORT:-8900}"
+
+# ── 프로젝트 = 버스 단위(포트 분리) ──
+# 포트 결정 우선순위: 명시적 HUB_PORT > PROJECT 에서 결정론적 파생 > 기본(:8900).
+PROJECT="${PROJECT:-default}"
+port_for_project() {
+  # default(미설정)는 레거시 :8900 유지(하위 호환). 그 외는 PROJECT 해시로 8901..8999 결정론적 파생.
+  # 서로 다른 프로젝트가 같은 포트로 충돌하면 .mcp.json 에 HUB_PORT 를 명시해 직접 박으면 된다.
+  case "$1" in
+    default) echo 8900 ;;
+    *) echo $(( 8901 + $(printf '%s' "$1" | cksum | cut -d' ' -f1) % 99 )) ;;
+  esac
+}
+HUB_PORT="${HUB_PORT:-$(port_for_project "$PROJECT")}"
+
 HUB_TS="$HERE/peer-bus-hub.ts"
 NODE_TS="$HERE/peer-bus-node.ts"
-LOG="$PEER_BUS_HOME/hub.log"
+LOG="$PEER_BUS_HOME/hub-${HUB_PORT}.log"   # 포트(프로젝트)별 로그 분리 → 허브를 따로 죽이고 디버깅하기 쉽다
 
 mkdir -p "$PEER_BUS_HOME"
 
@@ -26,7 +42,7 @@ if [ -z "${BUS_TOKEN:-}" ]; then
   fi
   BUS_TOKEN="$(cat "$PEER_BUS_HOME/token")"
 fi
-export BUS_TOKEN HUB_PORT PEER_BUS_HOME
+export BUS_TOKEN HUB_PORT PEER_BUS_HOME PROJECT
 export HUB="${HUB:-http://127.0.0.1:${HUB_PORT}}"
 
 probe() { curl -fsS -m 2 -H "X-Bus-Token: $BUS_TOKEN" "http://127.0.0.1:${HUB_PORT}/peers" >/dev/null 2>&1; }

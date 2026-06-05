@@ -1,7 +1,7 @@
 {
   "name": "peer-bus",
-  "version": "0.2.0",
-  "description": "Claude Code 세션 간 자율 협업 버스. 계약 본문은 BlogN, 버스는 트리거(포인터)만 나른다. 개발자 PC마다 localhost 자체완결 설치(허브 자동 보장 + PC별 토큰)로 백엔드↔프론트 세션이 BlogN 계약을 주고받는다. mac/linux/WSL2 지원.",
+  "version": "0.3.0",
+  "description": "Claude Code 세션 간 자율 협업 버스. 계약 본문은 BlogN, 버스는 트리거(포인터)만 나른다. 개발자 PC마다 localhost 자체완결 설치(허브 자동 보장 + PC별 토큰)로 백엔드↔프론트 세션이 BlogN 계약을 주고받는다. 프로젝트=버스 단위(PROJECT 포트 분리)로 여러 프로젝트를 무재부팅 전환·동시 운영해도 구조적으로 격리된다. mac/linux/WSL2 지원.",
   "author": {
     "name": "서도영",
     "email": "doyeong.seo@softn.kr"

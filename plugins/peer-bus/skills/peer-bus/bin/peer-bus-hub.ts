@@ -1,6 +1,11 @@
 #!/usr/bin/env bun
 /**
- * peer-bus-hub.ts — 세션 간 MCP 버스의 중앙 허브 (개발자 PC마다 1개, localhost 상시 구동)
+ * peer-bus-hub.ts — 세션 간 MCP 버스의 중앙 허브 (프로젝트 = 버스 1개, localhost 상시 구동)
+ *
+ * 프로젝트 = 버스 단위(포트 분리). 한 PC 에 여러 프로젝트가 떠 있으면 HUB_PORT 가 다른 허브가
+ * 프로젝트 수만큼 공존한다(예: 프로젝트 blogn=:8991, erd=:8924). 포트가 다르면 레지스트리·큐·핀
+ * 인덱스가 통째로 분리되므로 프로젝트 간 핀 누적·broadcast 누수가 구조적으로 발생하지 않는다.
+ * 포트는 wrapper(peer-bus-node)가 PROJECT 에서 파생해 HUB_PORT 로 넘긴다.
  *
  * 역할: (1) 접속자 레지스트리  (2) 메시지 라우팅(1:1 / broadcast)  (3) 핀 포인터 인덱스
  *
@@ -130,4 +135,4 @@ Bun.serve({
   },
 });
 
-console.error(`[peer-bus-hub] listening on http://127.0.0.1:${PORT}  (peers·routing·pin-index only)`);
+console.error(`[peer-bus-hub] listening on http://127.0.0.1:${PORT}  (project bus · peers·routing·pin-index only)`);

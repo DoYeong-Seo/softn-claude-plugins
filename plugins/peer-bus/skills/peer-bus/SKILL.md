@@ -24,6 +24,11 @@ BlogN 포스트에 두고, 버스는 "이 postId를 읽어라"는 `{type, refPos
 - 팀 공유 시크릿 배포 불필요 → 토큰은 PC마다 `~/.peer-bus/token` 으로 자동 생성.
 - 상시 서버 불필요 → 첫 세션이 허브를 자동 기동.
 
+**여러 프로젝트 공존**: 한 PC 에서 여러 프로젝트(각각 backend+front)를 무재부팅으로 갈아끼우거나
+동시에 운영할 수 있다. `PROJECT` 값으로 버스(포트)가 갈리므로(프로젝트 = 버스 단위) 프로젝트 간
+핀·broadcast 가 섞이지 않는다. 자세한 근거는 리서치 글 *peer-bus 멀티 프로젝트 운영 — 프로젝트=버스
+단위(포트 분리) 검토* 참조.
+
 여러 머신에 분산하려면 localhost 바인딩을 깰 수 없으므로 별도 설계(VPN/Tailscale)가 필요하다 —
 이 스킬의 기본 범위가 아니다.
 
@@ -31,9 +36,9 @@ BlogN 포스트에 두고, 버스는 "이 postId를 읽어라"는 `{type, refPos
 
 | 파일 | 역할 |
 |------|------|
-| `bin/peer-bus-hub.ts` | 허브(PC당 1개, `127.0.0.1:8900`). 레지스트리 + 라우팅 + 핀 포인터 인덱스. **계약 본문 미보유**. |
+| `bin/peer-bus-hub.ts` | 허브(**프로젝트당 1개**, `127.0.0.1:<PROJECT 파생 포트>`). 레지스트리 + 라우팅 + 핀 포인터 인덱스. **계약 본문 미보유**. |
 | `bin/peer-bus-node.ts` | 세션별 stdio MCP 노드. 송신 도구(send_to/broadcast/peers) + 수신(poll: read_messages / push: `<channel>`). |
-| `bin/peer-bus-node` | 실행 진입점(bash). 토큰 확보 + 허브 자동 보장 + `bun` 실행. `.mcp.json` 의 `command` 가 이걸 가리킨다. |
+| `bin/peer-bus-node` | 실행 진입점(bash). **PROJECT→포트 결정** + 토큰 확보 + 허브 자동 보장 + `bun` 실행. `.mcp.json` 의 `command` 가 이걸 가리킨다. |
 | `CLAUDE.protocol.md` | 각 레포 `CLAUDE.md` 에 붙일 자율 협업 규칙(사람 승인 게이트 포함). |
 
 ## 설치 절차 (사용자가 "peer-bus 설치"라고 하면)
@@ -49,8 +54,9 @@ BlogN 포스트에 두고, 버스는 "이 postId를 읽어라"는 `{type, refPos
    → `~/.peer-bus/` 에 런타임 복사 + 토큰 생성(권한 600) + `@modelcontextprotocol/sdk` 설치 +
    백엔드/프론트 `.mcp.json` 스니펫 출력.
 3. **레포별 `.mcp.json` 등록** — install.sh 가 출력한 스니펫을 백엔드 레포·프론트 레포 루트에 각각
-   추가한다. `NAME` 만 다르다(`backend` / `front:blogn`). 참고 원본: `snippets/backend.mcp.json`,
-   `snippets/front.mcp.json`.
+   추가한다. `NAME` 은 다르고(`backend` / `front:blogn`) **`PROJECT` 는 같게** 둔다 — 같은 프로젝트의
+   두 세션이 같은 버스(포트)에서 만나야 하기 때문. 다른 프로젝트는 다른 `PROJECT` 값을 쓰면 포트가
+   갈려 자동 격리된다(충돌 시 `HUB_PORT` 명시). 참고 원본: `snippets/backend.mcp.json`, `snippets/front.mcp.json`.
 4. **CLAUDE.md 프로토콜 주입** — `CLAUDE.protocol.md` 내용을 두 레포의 `CLAUDE.md` 에 붙여넣는다.
 5. **BlogN 준비** — 공유 BlogN 에 `agent-contracts`(계약·요청) / `agent-responses`(응답) 분류를
    만들고, 개발자별 네임스페이스(태그 `@id` 등)로 본문이 섞이지 않게 한다. (분류 생성은 blog-editor 스킬.)
@@ -79,8 +85,14 @@ BlogN 포스트에 두고, 버스는 "이 postId를 읽어라"는 `{type, refPos
 
 ## 운영 메모
 
-- **허브 자동 보장**: wrapper 가 `:8900/peers` probe → 죽었으면 `( nohup bun hub.ts & )` 로 detached
-  기동(부모 세션이 죽어도 생존). 두 세션 동시 기동 시 포트 바인딩이 mutex → 진 쪽은 `EADDRINUSE` 로 종료.
+- **프로젝트 = 버스 단위(포트 분리)**: wrapper 가 `PROJECT` 에서 허브 포트를 결정론적으로 파생한다
+  (`default`=`:8900`, 그 외 `:8901`–`:8999`). 같은 `PROJECT`→같은 버스, 다른 `PROJECT`→다른 허브로
+  핀·broadcast 가 구조적으로 격리. 무재부팅 프로젝트 전환에도 이전 계약 포인터가 새지 않는다.
+  서로 다른 프로젝트가 같은 포트로 충돌하면 `.mcp.json` env 에 `HUB_PORT` 를 명시(명시값이 우선).
+  포트별 로그는 `~/.peer-bus/hub-<port>.log` 로 분리되어 프로젝트별 허브를 따로 죽이고 보기 쉽다.
+- **허브 자동 보장**: wrapper 가 해당 포트의 `/peers` probe → 죽었으면 `( nohup bun hub.ts & )` 로
+  detached 기동(부모 세션이 죽어도 생존). 같은 포트에 두 세션 동시 기동 시 포트 바인딩이 mutex →
+  진 쪽은 `EADDRINUSE` 로 종료.
 - **토큰**: 환경변수 `BUS_TOKEN` 우선 → 없으면 `~/.peer-bus/token`. 평문 노출 금지(로그·응답에 마스킹).
 - **WSL2**: 백엔드 CC·프론트 CC·허브가 **같은 distro 안**에서 돌아야 localhost 가 일치. `~/.peer-bus/` 는
   distro 내부 홈에(`/mnt/c/...` 금지). distro 종료 시 허브도 종료되나 다음 세션이 재기동(in-memory 큐만

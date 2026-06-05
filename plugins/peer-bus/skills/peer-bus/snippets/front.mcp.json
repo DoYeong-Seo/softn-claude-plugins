@@ -4,6 +4,7 @@
       "command": "${HOME}/.peer-bus/bin/peer-bus-node",
       "env": {
         "NAME": "front:blogn",
+        "PROJECT": "blogn",
         "PEER_BUS_MODE": "poll"
       }
     }
