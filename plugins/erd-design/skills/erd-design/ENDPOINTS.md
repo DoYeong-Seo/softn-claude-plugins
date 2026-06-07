@@ -72,17 +72,17 @@
   "physicalName": "BBS_NOTICE",
   "tableCoordinates": "{\"x\":100,\"y\":100}",
   "columns": [
-    {"columnId":"c1","columnName":"NOTICE_ID","dataType":"BIGINT","primarykeyFlag":1,"notnullFlag":1,"autoIncreaseFlag":1,"displayOrder":1},
-    {"columnId":"c2","columnName":"TITLE","dataType":"VARCHAR(200)","notnullFlag":1,"displayOrder":2},
-    {"columnId":"c3","columnName":"CONTENT","dataType":"TEXT","displayOrder":3},
-    {"columnId":"c4","columnName":"REG_DATE","dataType":"DATETIME","notnullFlag":1,"displayOrder":4}
+    {"columnId":"NOTICE_ID","columnName":"공지사항 아이디","dataType":"BIGINT","primarykeyFlag":1,"notnullFlag":1,"autoIncreaseFlag":1,"displayOrder":1},
+    {"columnId":"NOTICE_TITLE","columnName":"공지사항 제목","dataType":"VARCHAR(200)","notnullFlag":1,"displayOrder":2},
+    {"columnId":"NOTICE_CONTENT","columnName":"공지사항 내용","dataType":"TEXT","displayOrder":3},
+    {"columnId":"REG_DATETIME","columnName":"등록 일시","dataType":"DATETIME","notnullFlag":1,"displayOrder":4}
   ]
 }
 ```
 
-**Column 필드:**
-- `columnId` (String) — 클라이언트 발급 권장 (UUID)
-- `columnName` (String)
+**Column 필드:** (`columnId`/`columnName` 규칙은 [CONVENTIONS.md §4](CONVENTIONS.md) 참조)
+- `columnId` (String) — **물리명**(영문 대문자, 예: `NOTICE_ID`). 곧 DB 물리 컬럼명이자 테이블 내 컬럼 식별자. **UUID 금지.**
+- `columnName` (String) — **한글 논리명**(용어사전 기반, 예: `공지사항 아이디`).
 - `dataType` (String) — 예: `VARCHAR(50)`, `BIGINT`, `DATETIME`, `TEXT`
 - `domainId` (String, optional)
 - `displayOrder` (Integer)

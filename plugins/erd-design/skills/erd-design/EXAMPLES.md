@@ -19,9 +19,9 @@
 - `GET /api/v1/erd/project/abc123/diagram/list` → 다이어그램 1개면 자동, 여러 개면 사용자 확인
 - **명명 워크플로우 진입**: `dictionaryId` 획득 → glossary/domain 목록 fetch
 - 누락 용어(예: `공지사항`, `제목`, `등록`, `일시`) 중 사전에 없는 것은 `AskUserQuestion` 으로 등록 동의 → `POST /glossary`
-- 사전 매핑으로 컬럼 물리명 조립 (예: `NOTICE_ID`, `NOTICE_TITLE`, `REG_DATETIME`)
+- 사전 매핑으로 컬럼 물리명(→`columnId`)과 한글 논리명(→`columnName`) 동시 조립 (예: `DOC_ID`/`문서 아이디`, `NOTICE_TITLE`/`공지사항 제목`, `REG_DATETIME`/`등록 일시`)
 - 각 컬럼별 도메인 후보 제시 → `AskUserQuestion` 으로 `domainId` 선택 (또는 "없음")
-- columns 배열 구성: `[{columnName:"NOTICE_ID", domainId:"<선택값>", primarykeyFlag:1, notnullFlag:1, displayOrder:1}, ...]`
+- columns 배열 구성 (`columnId`=물리명, `columnName`=한글 논리명, [CONVENTIONS.md §4](CONVENTIONS.md)): `[{columnId:"NOTICE_ID", columnName:"공지사항 아이디", domainId:"<선택값>", primarykeyFlag:1, notnullFlag:1, displayOrder:1}, ...]`
 - 최종 요약 동의 후 `POST /api/v1/erd/diagram/{diagramId}/table` 호출 → 생성된 tableId 보고
 
 ### 다단계: "게시판 ERD 프로젝트에 공지사항 테이블 추가해줘 — 공지사항ID, 제목, 내용, 등록일시"
@@ -31,18 +31,18 @@
    - `GET /api/v1/erd/project/{projectId}` → `dictionaryId` 획득
    - `GET /api/v1/erd/glossary/{dictionaryId}/list` + `GET /api/v1/erd/project/{projectId}/domain/list`
    - 논리명 토큰(`공지사항`, `제목`, `내용`, `등록`, `일시`) 사전 조회 → 누락분은 `AskUserQuestion` 으로 사용자 승인 후 `POST /glossary` 등록
-   - 사전 매핑으로 물리명 조립: `NOTICE`, `NOTICE_TITLE`, `NOTICE_CONTENT`, `NOTICE_REG_DATETIME` 등
+   - 사전 매핑으로 컬럼별 물리명(→`columnId`)·한글 논리명(→`columnName`) 동시 조립: `NOTICE`/`공지사항`, `NOTICE_TITLE`/`공지사항 제목`, `NOTICE_CONTENT`/`공지사항 내용`, `NOTICE_REG_DATETIME`/`공지사항 등록 일시` 등
    - 각 컬럼별 도메인 후보 추천 → `AskUserQuestion` 으로 사용자가 `domainId` 선택
-4. 최종 요약 → 사용자 동의 → `POST /api/v1/erd/diagram/{diagramId}/table` (body: tableInfo + columns 배열, 각 컬럼에 `domainId` 포함)
+4. 최종 요약 → 사용자 동의 → `POST /api/v1/erd/diagram/{diagramId}/table` (body: tableInfo + columns 배열, 각 컬럼에 `columnId`(물리명)·`columnName`(한글 논리명)·`domainId` 포함)
 5. 결과 요약 응답
 
 ## FK 관계 (명명 워크플로우 비대상이지만 컬럼 추가는 적용)
 
 ### 예 4: "프로젝트 abc123의 USER와 POST를 1:N 관계로 연결" (FK = `ErdTableIndex(indexType=FOREIGN)` 단일 진실원, 2026-05-07~)
 - 두 테이블의 ID·PK 컬럼 식별 (`GET /api/v1/erd/diagram/{diagramId}/table/list`)
-- 자식 테이블 (POST) 에 FK 컬럼 (`userId`) 추가: `POST /api/v1/erd/table/{postTableId}/column`
-  - 이 컬럼 추가는 명명 워크플로우 대상. 다만 부모 PK 컬럼명을 그대로 차용하는 경우(`userId`) glossary 매핑은 이미 부모 컬럼에서 검증됨.
-- `POST /api/v1/erd/table/{postTableId}/index` body 예:
+- 자식 테이블 (POST) 에 FK 컬럼 (`USER_ID`) 추가: `POST /api/v1/erd/table/{postTableId}/column`
+  - 이 컬럼 추가는 명명 워크플로우 대상. 다만 부모 PK 컬럼의 물리명을 그대로 차용하는 경우(`USER_ID`) glossary 매핑은 이미 부모 컬럼에서 검증됨. 컬럼 body 는 `{"columnId":"USER_ID","columnName":"사용자 아이디", ...}` 형태(물리명→`columnId`, 한글 논리명→`columnName`).
+- `indexColumns[].columnId` / `sourceColumnId` 는 각각 **자식·부모 컬럼의 물리명**(=`columnId`)이다. `POST /api/v1/erd/table/{postTableId}/index` body 예:
   ```json
   {
     "indexType": "FOREIGN",
@@ -51,7 +51,7 @@
     "onDeleteAction": "CASCADE",
     "onUpdateAction": "NO_ACTION",
     "indexColumns": [
-      {"columnId": "userId", "sourceColumnId": "id", "sortType": "ASC", "displayOrder": 1}
+      {"columnId": "USER_ID", "sourceColumnId": "USER_ID", "sortType": "ASC", "displayOrder": 1}
     ]
   }
   ```

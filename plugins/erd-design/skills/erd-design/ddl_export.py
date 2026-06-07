@@ -118,8 +118,13 @@ def _flag(col: Dict[str, Any], key: str) -> bool:
     return val == 1 or val == "1" or val is True
 
 
+def _physical_name(col: Dict[str, Any]) -> str:
+    """컬럼 물리명 = columnId (ERD_COLUMN 컨벤션: columnId=물리명, columnName=한글 논리명)."""
+    return col.get("columnId") or col.get("columnName") or "UNNAMED"
+
+
 def _column_def(col: Dict[str, Any]) -> str:
-    name = col.get("columnName") or col.get("columnId") or "UNNAMED"
+    name = _physical_name(col)
     data_type = (col.get("dataType") or "VARCHAR(255)").strip()
     parts: List[str] = [_q(name), data_type]
 
@@ -141,6 +146,12 @@ def _column_def(col: Dict[str, Any]) -> str:
             esc = s.replace("'", "''")
             parts.append(f"DEFAULT '{esc}'")
 
+    # 한글 논리명(columnName)은 컬럼 COMMENT 로 보존
+    logical = (col.get("columnName") or "").strip()
+    if logical and logical != name:
+        esc = logical.replace("'", "''")
+        parts.append(f"COMMENT '{esc}'")
+
     return " ".join(parts)
 
 
@@ -149,7 +160,7 @@ def _primary_key_clause(columns: List[Dict[str, Any]]) -> Optional[str]:
     if not pk_cols:
         return None
     pk_cols.sort(key=lambda c: c.get("displayOrder") or 0)
-    names = ", ".join(_q(c.get("columnName") or c.get("columnId")) for c in pk_cols)
+    names = ", ".join(_q(_physical_name(c)) for c in pk_cols)
     return f"PRIMARY KEY ({names})"
 
 
@@ -173,7 +184,8 @@ def _index_clauses(table_id: str, columns_by_id: Dict[str, Dict[str, Any]]) -> L
         for ic in idx_cols:
             col_id = ic.get("columnId")
             col = columns_by_id.get(col_id)
-            col_name = col.get("columnName") if col else col_id
+            # 물리명 = columnId. indexColumns[].columnId 가 이미 물리명이므로 fallback 도 col_id.
+            col_name = _physical_name(col) if col else col_id
             if not col_name:
                 continue
             sort = (ic.get("sortType") or "").upper()
@@ -258,14 +270,15 @@ def _fk_clauses(tables: List[Dict[str, Any]]) -> List[str]:
             child_col_names: List[str] = []
             parent_col_names: List[str] = []
             for ic in idx_cols:
+                # 자식·부모 FK 컬럼 물리명 = columnId / sourceColumnId (둘 다 물리명).
                 c_id = ic.get("columnId")
                 c_col = child_cols_by_id.get(c_id)
-                child_col_names.append(_q((c_col and c_col.get("columnName")) or c_id))
+                child_col_names.append(_q((c_col and _physical_name(c_col)) or c_id))
 
                 p_id = ic.get("sourceColumnId")
                 if p_id:
                     p_col = parent_cols.get(p_id)
-                    parent_col_names.append(_q((p_col and p_col.get("columnName")) or p_id))
+                    parent_col_names.append(_q((p_col and _physical_name(p_col)) or p_id))
                 else:
                     parent_col_names.append("/* TODO: sourceColumnId 누락 */")
 

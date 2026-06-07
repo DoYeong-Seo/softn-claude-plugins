@@ -38,6 +38,23 @@
 
 **검토 시 주의**: "키"라는 컬럼명만으로 UNIQUE 누락을 지적하지 않는다. 비즈니스 의미가 식별자인지 i18n 키인지부터 확인한다.
 
+## 4. 컬럼 메타 저장 규칙 (`ERD_COLUMN` 의 `columnId` / `columnName`)
+
+`ERD_COLUMN` 레코드는 다음 규칙으로 저장한다 — **기존 테이블(`USR_DEPT`, `WORK_GROUP` 등)이 따르는 실제 컨벤션**이다.
+
+| 필드 | 담는 값 | 예 |
+|------|---------|----|
+| `columnId` | **물리명**(영문 대문자, 용어사전 `physicalName` 조립) | `DOC_ID`, `USR_DEPT_ID`, `WORK_GROUP_NAME` |
+| `columnName` | **한글 논리명**(용어사전 `logicalName` 조립) | `문서 아이디`, `사용자 부서 아이디`, `작업 그룹 이름` |
+
+- **`columnId` 는 곧 DB 물리 컬럼명**이다. DDL의 컬럼명·PK/인덱스/FK 컬럼 참조는 모두 `columnId` 로 산출된다.
+- **`columnId` 에 UUID를 절대 넣지 않는다.** (프로젝트·다이어그램·테이블 ID는 서버가 UUID를 발급하지만, **컬럼은 물리명이 곧 식별자**다. 컬럼 외 다른 엔티티의 `*Id` 와 혼동 금지.)
+- `columnName` 은 한글 논리명이며, 용어사전 **역매핑**(물리 토큰 → `logicalName`)으로 조립한다. 미등록 토큰은 [NAMING.md](NAMING.md) 절차로 사전 등록 후 사용.
+- 같은 테이블 안에서 `columnId`(물리명)는 유일해야 한다 — 단일 컬럼 수정(`PUT /table/{tableId}/column`)·삭제(`DELETE .../column/{columnId}`)가 이 값을 키로 쓴다.
+
+**검토 시 주의**: `columnName` 이 한글이라고 "물리명 누락"으로 보지 않는다. 물리명은 `columnId` 에 있다. 반대로 `columnId` 가 UUID 형태이면 **잘못 생성된 데이터**이므로 보고한다.
+
 ## 컨벤션 갱신 이력
 
 - 2026-05-07: 초기 작성 (Labs 다이어그램 검토 결과 반영)
+- 2026-06-07: `columnId`=물리명 / `columnName`=한글 논리명 저장 규칙 명문화 (USR_DEPT/WORK_GROUP 컨벤션 반영, UUID 혼입 금지)

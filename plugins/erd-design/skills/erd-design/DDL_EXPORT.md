@@ -27,6 +27,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/erd-design/ddl_export.py" --project-id <PR
 - `BLOGN_PAT_TOKEN` 환경변수 설정
 - `pip3 install -r "${CLAUDE_PLUGIN_ROOT}/skills/erd-design/requirements.txt"`
 
+## 컬럼명 규칙
+
+DDL의 물리 컬럼명은 `ERD_COLUMN.columnId`(물리명, 예: `DOC_ID`)에서 산출하고, `columnName`(한글 논리명, 예: `문서 아이디`)은 컬럼 `COMMENT '...'` 로 보존한다. PK·인덱스·FK 컬럼 참조도 모두 `columnId` 기준이다 ([CONVENTIONS.md §4](CONVENTIONS.md)).
+
 ## 산출 파일
 
 ```
