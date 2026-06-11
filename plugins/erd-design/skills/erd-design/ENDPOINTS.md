@@ -157,8 +157,8 @@
 | 필드 | 비고 |
 |---|---|
 | `tableId` | 자식 테이블 (복합 PK) |
-| `indexId` | 자식 테이블 내 unique. 신 명명 규칙: `{TABLE_PHYSICAL}_{N}` (예: `USER_3`) |
-| `indexName` | 신 명명 규칙: `{TYPE}_{TABLE_PHYSICAL}_{N}` (예: `IDX_USER_3`, `FK_ORDER_2`, `PK_USER_1`) |
+| `indexId` | **UUID** (전역 unique). 생성 시 새 UUID 를 부여하되 **하이픈(`-`) 제거 후 32자**로 만든다 (예: `550e8400e29b41d4a716446655440000`) — 물리명 기반 조립 금지 |
+| `indexName` | 명명 규칙: `{접두}_{TABLE_PHYSICAL}_{연번}` (예: `PK_USER_1`, `FK_ORDER_2`, `UK_USER_3`, `IDX_USER_4`) — [5.6](#56-인덱스-명명-규칙) 참조 |
 | `indexType` | `PRIMARY` / `UNIQUE` / `NORMAL` / `FULLTEXT` / `FOREIGN` |
 | `sourceTableId` | FK 한정. 부모(참조 대상) 테이블 ID. **cross-diagram 허용**, **cross-project 거부** |
 | `onUpdateAction` / `onDeleteAction` | FK 한정. `CASCADE` / `RESTRICT` / `SET_NULL` / `NO_ACTION` |
@@ -177,7 +177,41 @@
 
 ### 5.5 식별 키
 
-`(tableId, indexId)` 복합 PK 입니다. **`indexId` 단독 조회 금지** — 신 명명 규칙에서는 다른 자식 테이블에 동일 indexId 가 존재할 수 있음.
+`(tableId, indexId)` 복합 PK 입니다. `indexId` 는 하이픈 제거 32자 UUID 라 전역 unique 하지만, 조회 시에는 `(tableId, indexId)` 쌍으로 다룬다.
+
+### 5.6 인덱스 명명 규칙
+
+인덱스를 **생성(POST)** 할 때 `indexId` 와 `indexName` 은 아래 규칙으로 만든다. 임의 작명 금지.
+
+```
+indexId    = UUID 하이픈 제거 32자             (예: 550e8400e29b41d4a716446655440000)
+indexName  = {접두}_{TABLE_PHYSICAL}_{연번}     (예: PK_USER_1, FK_ORDER_2, UK_USER_3, IDX_USER_4)
+```
+
+- **`indexId`** — 새 UUID 를 생성하고 하이픈(`-`)을 제거해 32자로 만든다. 물리명·연번 기반 조립 금지. (예: `uuidgen | tr -d '-' | tr 'A-Z' 'a-z'`)
+- **`indexName`** — 아래 `{접두}`·`{연번}` 규칙으로 조립한다.
+- `{TABLE_PHYSICAL}` — 대상 테이블의 `physicalName` 그대로.
+- `{접두}` — `indexType` 에 따른 약어.
+
+| `indexType` | 접두 | 의미 |
+|---|---|---|
+| `PRIMARY` | `PK` | 기본키 |
+| `FOREIGN` | `FK` | 외래키 |
+| `UNIQUE` | `UK` | 유니크 |
+| `NORMAL` | `IDX` | 일반 인덱스 |
+| `FULLTEXT` | `FT` | 전문 검색 |
+
+**`{연번}` 규칙 — `indexName` 에만 적용, 테이블별로 부여:**
+
+1. **PK(`PRIMARY`)는 항상 `1`.** 테이블 내 PK 인덱스는 하나뿐이며 연번은 무조건 1을 차지한다.
+2. **그 외 인덱스(`FOREIGN`/`UNIQUE`/`NORMAL`/`FULLTEXT`)는 테이블 내 인덱스 생성 순서대로 `2, 3, 4 …`** 를 부여한다. 즉 새 인덱스의 연번 = `해당 테이블의 기존 인덱스 최대 연번 + 1`(PK가 차지한 1 포함).
+3. 연번은 **타입과 무관하게 테이블 단위로 단조 증가**한다 (FK·UK·IDX 가 같은 연번 시퀀스를 공유). 접두만 타입별로 다르다.
+4. 연번은 **재사용·재정렬하지 않는다.** 중간 인덱스를 삭제해도 남은 인덱스의 연번은 그대로 두고, 새 인덱스는 항상 최대 연번 + 1 을 받는다 (빈 번호 재활용 금지).
+
+**부여 절차:** 생성 직전 `GET /api/v1/erd/table/{tableId}/index/list` 로 기존 인덱스를 조회 → 기존 `indexName` 들의 연번 중 PK 면 1, 아니면 최댓값 + 1 산정 → `indexName` 조립, `indexId` 는 새 UUID(하이픈 제거 32자) → POST.
+
+> **예시** — `USER` 테이블에 PK → FK → UNIQUE → NORMAL 순으로 생성하면 `indexName` 은:
+> `PK_USER_1` → `FK_USER_2` → `UK_USER_3` → `IDX_USER_4`. (각 `indexId` 는 별개의 32자 UUID.)
 
 ---
 
@@ -270,10 +304,10 @@
 | "테이블 삭제" | `DELETE /api/v1/erd/table/{tableId}` | **사용자 확인 필수** |
 | "컬럼 추가" | `POST /api/v1/erd/table/{tableId}/column` | 단일 |
 | "컬럼들 한번에 변경" | `PUT /api/v1/erd/table/{tableId}` | 테이블 통째 diff |
-| "관계 만들어", "FK 연결" | `POST /api/v1/erd/table/{tableId}/index` | `indexType: "FOREIGN"` + `sourceTableId` + `indexColumns[]` |
+| "관계 만들어", "FK 연결" | `POST /api/v1/erd/table/{tableId}/index` | `indexType: "FOREIGN"` + `sourceTableId` + `indexColumns[]`, `indexId`/`indexName` 은 [5.6](#56-인덱스-명명-규칙) 규칙 |
 | "FK 카디널리티 변경" | `PUT /api/v1/erd/table/{tableId}/foreign-index/{indexId}/cardinality` | atomic |
 | "FK 식별/비식별 토글" | `PUT /api/v1/erd/table/{tableId}/foreign-index/{indexId}/identifying` | atomic |
-| "인덱스 추가", "유니크 제약" | `POST /api/v1/erd/table/{tableId}/index` | `indexType: "UNIQUE"` |
+| "인덱스 추가", "유니크 제약" | `POST /api/v1/erd/table/{tableId}/index` | `indexType: "UNIQUE"`/`NORMAL`, `indexId`/`indexName` 은 [5.6](#56-인덱스-명명-규칙) 규칙 |
 | "도메인", "공통 데이터타입" | `/api/v1/erd/project/{projectId}/domain` | |
 | "컬럼 그룹", "공통 컬럼 세트" | `/api/v1/erd/project/{projectId}/column-group` | createdBy/updatedBy 등 묶음 |
 | "용어 사전", "용어 등록" | `/api/v1/erd/glossary/...` | |
