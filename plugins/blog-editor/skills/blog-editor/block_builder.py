@@ -497,6 +497,108 @@ def put_post_contents(
 
 
 # ─────────────────────────────────────────────────────────────────────
+# 증분 블록 편집 (block-level edit) — .../{postId}/blocks*
+#
+# put_post_contents 가 본문 전체 교체(전 블록 삭제 후 재INSERT, lockTimestamp 필수,
+# 위키링크 전체 재계산, POST_CONTENTS 스냅샷 즉시 갱신)인 반면, 아래 헬퍼는 블록 1개
+# 단위로 증분 편집한다. lockTimestamp 를 쓰지 않는다:
+#   - add_block / move_block : 서버가 postId 단위 락으로 BLOCK_INDEX 원자성을 보장
+#   - update_block           : versionNo(블록별 VERSION_NO) 낙관적 동시성 — 불일치 시 409
+# 증분 편집은 BLOG_POST_BLOCK 행만 바꾸며 POST_CONTENTS/POST_SEARCH 스냅샷은 자동 갱신되지
+# 않는다(add/update 는 블록별 위키링크만 동기화, delete 는 이후 인덱스를 당김). 편집을 마치면
+# sync_contents(...) 를 한 번 호출해 스냅샷 + 검색 인덱스를 플러시한다.
+# ─────────────────────────────────────────────────────────────────────
+
+
+def add_block(
+    *,
+    blog_id: str,
+    post_id: str,
+    block: dict,
+    index: int,
+    token: str | None = None,
+) -> dict:
+    """POST /api/v1/blog/{blogId}/posts/{postId}/blocks — 블록 1개를 index 위치에 삽입.
+
+    ``block`` 은 paragraph()/header()/table()/... 빌더가 반환한 dict({id,type,data}).
+    blockId 는 block["id"] 를 그대로 보내며, 비어 있으면 서버가 자동 생성한다.
+    lockTimestamp 불필요. 반환: 저장된 블록 VO(data[0]).
+    """
+    body: dict[str, Any] = {"type": block["type"], "data": block.get("data", {}), "index": index}
+    if block.get("id"):
+        body["blockId"] = block["id"]
+    return _first(_request(
+        "POST", f"/api/v1/blog/{blog_id}/posts/{post_id}/blocks", body=body, token=token,
+    ))
+
+
+def update_block(
+    *,
+    blog_id: str,
+    post_id: str,
+    block_id: str,
+    block: dict,
+    version_no: int | None = None,
+    token: str | None = None,
+) -> dict:
+    """PUT /api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId} — 블록 1개 내용 교체.
+
+    ``block`` 은 빌더가 반환한 dict(type/data 사용). ``version_no`` 를 주면 블록별 VERSION_NO
+    낙관적 동시성 검증(불일치 시 409). lockTimestamp 불필요. 반환: 수정된 블록 VO(data[0]).
+    """
+    body: dict[str, Any] = {"type": block["type"], "data": block.get("data", {})}
+    if version_no is not None:
+        body["versionNo"] = version_no
+    return _first(_request(
+        "PUT", f"/api/v1/blog/{blog_id}/posts/{post_id}/blocks/{block_id}",
+        body=body, token=token,
+    ))
+
+
+def delete_block(*, blog_id: str, post_id: str, block_id: str, token: str | None = None) -> dict:
+    """DELETE /api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId} — 블록 1개 삭제.
+
+    삭제 후 이후 블록 인덱스가 1씩 당겨진다(공백 제거). body 불필요. 반환: 응답 payload.
+    """
+    return _request(
+        "DELETE", f"/api/v1/blog/{blog_id}/posts/{post_id}/blocks/{block_id}", token=token,
+    )
+
+
+def move_block(
+    *,
+    blog_id: str,
+    post_id: str,
+    block_id: str,
+    from_index: int,
+    to_index: int,
+    token: str | None = None,
+) -> dict:
+    """PUT /api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId}/move — 블록 위치 이동.
+
+    from_index/to_index 둘 다 필수이며 서로 달라야 한다(같으면 400). lockTimestamp 불필요.
+    반환: 응답 payload.
+    """
+    body: dict[str, Any] = {"fromIndex": from_index, "toIndex": to_index}
+    return _request(
+        "PUT", f"/api/v1/blog/{blog_id}/posts/{post_id}/blocks/{block_id}/move",
+        body=body, token=token,
+    )
+
+
+def sync_contents(*, blog_id: str, post_id: str, token: str | None = None) -> dict:
+    """POST /api/v1/blog/{blogId}/posts/{postId}/contents/sync — 블록 → 스냅샷 동기화.
+
+    BLOG_POST_BLOCK 전체를 Editor.js JSON 으로 직렬화해 POST_CONTENTS 에 쓰고, 평문 추출 →
+    형태소 토큰화 후 POST_SEARCH 에도 반영한다. 증분 블록 편집(add/update/delete/move) 을
+    마친 뒤 한 번 호출한다. lockTimestamp 불필요. 반환: 갱신된 포스트 VO(postContents 포함).
+    """
+    return _first(_request(
+        "POST", f"/api/v1/blog/{blog_id}/posts/{post_id}/contents/sync", token=token,
+    ))
+
+
+# ─────────────────────────────────────────────────────────────────────
 # 파일 업로드 (image / thumb / attach) — BLOCKS.md §10
 #
 # 진입점은 `POST /api/v1/files/upload` (SysFileApiController — 외부 클라이언트/스킬·MCP 전용).
@@ -1074,6 +1176,11 @@ __all__ = [
     "publish_post",
     "unpublish_post",
     "put_post_contents",
+    "add_block",
+    "update_block",
+    "delete_block",
+    "move_block",
+    "sync_contents",
     "upload_image",
     "upload_attachment",
     "get_file",

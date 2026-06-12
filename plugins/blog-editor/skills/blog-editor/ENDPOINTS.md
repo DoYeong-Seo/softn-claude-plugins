@@ -62,7 +62,12 @@
 | POST | `/api/v1/blog/{blogId}/posts` | AUTH | 포스트 생성 — **메타데이터만** |
 | PUT | `/api/v1/blog/{blogId}/posts/{postId}` | EDITOR | 포스트 설정 수정 — **메타데이터만**. ⚠️ `postStatus`/`publishFlag` 는 이 엔드포인트로 갱신되지 않음(SQL 미포함) — 발행은 `/publish` 사용 |
 | PUT | `/api/v1/blog/{blogId}/posts/{postId}/publish` | AUTHOR 또는 EDITOR | **포스트 발행/발행취소 전용** — `POST_STATUS` 와 `PUBLISH_FLAG` 동시 갱신. body: `{publishFlag:0|1, lockTimestamp}`. publishFlag=1 → POST_STATUS='PUBLISHED' + PUBLISH_FLAG=1, publishFlag=0 → POST_STATUS='DRAFT' + PUBLISH_FLAG=0 |
-| PUT | `/api/v1/blog/{blogId}/posts/{postId}/contents` | EDITOR | 포스트 본문(블록) **일괄 교체** — Editor.js JSON, BLOG_POST_BLOCK 전체 삭제 후 재INSERT |
+| PUT | `/api/v1/blog/{blogId}/posts/{postId}/contents` | EDITOR | 포스트 본문(블록) **일괄 교체** — Editor.js JSON, BLOG_POST_BLOCK 전체 삭제 후 재INSERT. `lockTimestamp` 필수 |
+| POST | `/api/v1/blog/{blogId}/posts/{postId}/blocks` | EDITOR | **블록 1개 추가** (증분) — `index` 위치에 삽입. `lockTimestamp` 불필요(서버 postId 락) |
+| PUT | `/api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId}` | EDITOR | **블록 1개 수정** (증분) — `versionNo` 낙관적 동시성(불일치 시 409). `lockTimestamp` 미사용 |
+| DELETE | `/api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId}` | EDITOR | **블록 1개 삭제** (증분) — 삭제 후 이후 블록 인덱스 1씩 당김. body 없음 |
+| PUT | `/api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId}/move` | EDITOR | **블록 이동** (증분) — `fromIndex`→`toIndex` 재정렬. `lockTimestamp` 불필요(서버 postId 락) |
+| POST | `/api/v1/blog/{blogId}/posts/{postId}/contents/sync` | EDITOR | **본문 스냅샷 동기화** — BLOG_POST_BLOCK 전체 → `POST_CONTENTS`(Editor.js JSON) + `POST_SEARCH`(형태소). 증분 편집 후 호출. body 없음 |
 | DELETE | `/api/v1/blog/{blogId}/posts/{postId}` | OWNER 또는 AUTHOR | **소프트 삭제(휴지통 이동)** — `POST_STATUS='DELETED'`, `DELETE_REQUEST_DATETIME=now()`. 자식 테이블 보존 |
 | GET | `/api/v1/blog/{blogId}/posts/trash` | OWNER 또는 AUTHOR | 휴지통(`POST_STATUS='DELETED'`) 목록. OWNER=블로그 전체 휴지통, AUTHOR=본인 글만. 삭제 요청 시각 내림차순 |
 | PUT | `/api/v1/blog/{blogId}/posts/{postId}/restore` | OWNER 또는 AUTHOR | 휴지통 포스트 **복원** (`POST_STATUS='DRAFT'`, `DELETE_REQUEST_DATETIME=NULL`). 휴지통 상태 아니면 400 (`BLOG_POST_NOT_IN_TRASH`) |
@@ -122,6 +127,63 @@
 > 🔄 **2026-05-19 동작 변경**: 이전에는 lockTimestamp 검증이 블록 교체 *이후*에 일어나 자기 자신의 부수효과로 인한 409가 발생할 수 있었다. 현재는 사전 검증으로 변경되어, `POST /posts` 응답의 lockTimestamp를 그대로 첫 본문 PUT에 사용해도 안전하다.
 
 **메타 PUT vs 본문 PUT 분리 원칙**: 메타 PUT(`/posts/{postId}`)은 `postContents`를 수신하지 않는다. 본문 PUT(`/posts/{postId}/contents`)은 메타 필드(제목·태그·분류·노출 등)를 수신하지 않는다. 두 가지를 동시에 바꿔야 한다면 두 번 호출하거나, 본문 PUT의 `postStatus`만 함께 보낸다.
+
+---
+
+### 🧩 증분 블록 편집 — `/posts/{postId}/blocks*` + `/contents/sync`
+
+본문 갱신에는 **두 가지 경로**가 있다. 둘은 잠금 모델·부수효과가 다르므로 섞지 말고 작업 성격에 맞게 택한다.
+
+| 구분 | 일괄 교체 `PUT /contents` | 증분 편집 `/blocks*` |
+|------|--------------------------|----------------------|
+| 단위 | 본문 전체(blocks[] 통째) | 블록 1개 |
+| 동시성 제어 | **`lockTimestamp`** (포스트 단위 Optimistic Lock, 불일치 409) | add/move=**서버 postId 락**(lockTimestamp 불필요) / modify=**`versionNo`**(블록별, 불일치 409) |
+| BLOG_POST_BLOCK | 전체 삭제 후 재INSERT | 해당 블록만 INSERT/UPDATE/DELETE, 인덱스 자동 재정렬 |
+| 위키링크(BLOG_POST_LINK) | 전체 재계산(`syncPost`) | add/modify 시 **해당 블록만** 동기화(`syncBlock`) |
+| `POST_CONTENTS`/`POST_SEARCH` 스냅샷 | **즉시** 갱신 | **자동 갱신 안 됨** → 편집 후 `POST /contents/sync` 호출 필요 |
+| 포스트 상태 | `EDIT` 로 전환, `LOCK_TIMESTAMP` 갱신 | 변경 없음 |
+
+> ⚠️ **증분 편집의 핵심**: `/blocks*` 호출만으로는 `POST_CONTENTS`(공개 본문 스냅샷)와 `POST_SEARCH`(검색 인덱스)가 갱신되지 않는다. 블록 add/update/delete/move 를 한 묶음 끝낸 뒤 **반드시 `POST /contents/sync` 를 한 번 호출**해 스냅샷을 플러시한다. 호출 전까지 GET 단건의 `postContents` 는 옛 스냅샷을 보여줄 수 있다.
+
+**블록 추가 — `POST /posts/{postId}/blocks` body:**
+
+| 필드 | 타입 | 필수 | 비고 |
+|------|------|------|------|
+| `type` | String | ✓ | 블록 타입(paragraph/header/...). 누락 시 400 |
+| `index` | Integer | ✓ | 삽입 위치(0-based). 누락 시 400 |
+| `data` | Object | 선택 | 블록 data. 누락 시 `{}` |
+| `blockId` | String | 선택 | 미지정 시 서버가 10자 자동 생성 |
+
+**블록 수정 — `PUT /posts/{postId}/blocks/{blockId}` body:**
+
+| 필드 | 타입 | 필수 | 비고 |
+|------|------|------|------|
+| `type` | String | ✓ | 누락 시 400 |
+| `data` | Object | 선택 | 누락 시 `{}` |
+| `versionNo` | Integer | 선택 | DB 현재값과 비교. 불일치 시 **409**. 생략하면 버전 검증 없이 덮어씀 |
+
+**블록 이동 — `PUT /posts/{postId}/blocks/{blockId}/move` body:**
+
+| 필드 | 타입 | 필수 | 비고 |
+|------|------|------|------|
+| `fromIndex` | Integer | ✓ | 현재 위치 |
+| `toIndex` | Integer | ✓ | 이동 후 위치. `fromIndex==toIndex` 이면 400 |
+
+**블록 삭제 — `DELETE /posts/{postId}/blocks/{blockId}`**: body 없음. 삭제 후 이후 블록 인덱스가 1씩 당겨진다.
+
+**본문 동기화 — `POST /posts/{postId}/contents/sync`**: body 없음. 응답 `data[0]` 에 갱신된 `ApiBlogPostVO`(서버 재구성 `postContents` 포함).
+
+**공통 응답**: 블록 add/update/sync 는 `data[0]` 에 VO(블록 또는 포스트)를 반환. delete/move 는 `success`/`message` 만(블록 VO 없음).
+
+**공통 에러**:
+| HTTP | 의미 |
+|------|------|
+| 400 | `type`/`index`/`fromIndex`/`toIndex` 누락, move 의 같은 인덱스, 인덱스 범위 초과 |
+| 403 | 편집 권한(`BlogPostEditUserService.isAuthorized`) 없음 |
+| 404 | 포스트 없음 / blogId 불일치 / **blockId 가 해당 포스트 소속이 아님(IDOR 차단)** |
+| 409 | 블록 수정 시 `versionNo` 불일치 |
+
+> **VERSION_NO 흐름**: GET 단건의 블록 본문은 Editor.js 형식이라 블록별 `versionNo` 가 노출되지 않는다. 충돌 가능성이 있는 협업 편집에서 `versionNo` 를 활용하려면 별도 블록 조회 경로가 필요하며, 단독 편집 시에는 `versionNo` 를 생략해 마지막-쓰기-우선으로 처리해도 된다.
 
 **응답**: `ApiResponseListVO<ApiBlogPostVO>` — `data[0]`에 갱신된 포스트 단건(새 `lockTimestamp` + `postContents` Map 포함).
 
@@ -266,7 +328,12 @@
 | "제목 바꿔", "분류 변경" | `PUT /api/v1/blog/{blogId}/posts/{postId}` | 메타만, lockTimestamp 필수. **`postStatus`/`publishFlag` 는 갱신되지 않음** — 발행은 `/publish` 사용 |
 | "발행", "게시해줘", "공개로 전환" | `PUT /api/v1/blog/{blogId}/posts/{postId}/publish` body: `{publishFlag:1, lockTimestamp}` | POST_STATUS='PUBLISHED' + PUBLISH_FLAG=1 동시 갱신 |
 | "발행 취소", "비공개로", "초안으로 되돌려" | `PUT /api/v1/blog/{blogId}/posts/{postId}/publish` body: `{publishFlag:0, lockTimestamp}` | POST_STATUS='DRAFT' + PUBLISH_FLAG=0 동시 갱신 |
-| "본문 채워", "본문 갱신", "내용 바꿔", "글 내용 저장", "블록 저장" | `PUT /api/v1/blog/{blogId}/posts/{postId}/contents` | Editor.js 풀 JSON, lockTimestamp 필수, EDITOR 권한 |
+| "본문 채워", "본문 갱신", "내용 바꿔", "글 내용 저장", "블록 저장" | `PUT /api/v1/blog/{blogId}/posts/{postId}/contents` | Editor.js 풀 JSON **일괄 교체**, lockTimestamp 필수, EDITOR 권한 |
+| "블록 하나 추가", "문단 끼워넣어", "N번째에 블록 삽입" | `POST /api/v1/blog/{blogId}/posts/{postId}/blocks` body: `{type, index, data?, blockId?}` | **증분** 추가, lockTimestamp 불필요 |
+| "이 블록만 고쳐", "특정 블록 내용 수정" | `PUT /api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId}` body: `{type, data, versionNo?}` | **증분** 수정, versionNo 불일치 시 409 |
+| "이 블록 지워", "블록 하나 삭제" | `DELETE /api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId}` | **증분** 삭제, body 없음, 이후 인덱스 당김 |
+| "블록 순서 바꿔", "위/아래로 이동", "끌어올려" | `PUT /api/v1/blog/{blogId}/posts/{postId}/blocks/{blockId}/move` body: `{fromIndex, toIndex}` | **증분** 이동, lockTimestamp 불필요 |
+| "본문 동기화", "스냅샷 갱신", "검색 반영", (증분 편집 마무리) | `POST /api/v1/blog/{blogId}/posts/{postId}/contents/sync` | POST_CONTENTS+POST_SEARCH 플러시, body 없음. **증분 편집 후 필수** |
 | "포스트 삭제", "글 지워", "글 버려" | `DELETE /api/v1/blog/{blogId}/posts/{postId}` | **소프트 삭제 → 휴지통 이동**, 복원 가능. 사용자 확인 필수 |
 | "휴지통 목록", "삭제된 글 보여줘", "지운 포스트들" | `GET /api/v1/blog/{blogId}/posts/trash` | OWNER=블로그 전체, AUTHOR=본인 글만 |
 | "포스트 복원", "되살려", "휴지통에서 꺼내" | `PUT /api/v1/blog/{blogId}/posts/{postId}/restore` | `POST_STATUS='DRAFT'`로 복원, lockTimestamp 필수 |
@@ -303,6 +370,8 @@
 | "비공개로 돌려" / "발행 취소" | (1) GET → lockTimestamp → (2) `PUT /publish` body: `{publishFlag:0, lockTimestamp}` — POST_STATUS='DRAFT' 동시 복원 |
 | "발행 + 분류 동시" | 두 번의 PUT 호출. (1) GET → lockTimestamp → (2) PUT 메타 `{clsfId, lockTimestamp}` → (3) PUT 메타 응답 lockTimestamp 로 `PUT /publish` `{publishFlag:1, lockTimestamp}`. 메타와 발행은 별도 채널이므로 한 번에 묶을 수 없다. |
 | "본문 갱신" | (1) `GET /posts/{postId}` → lockTimestamp → (2) [BLOCKS.md](BLOCKS.md) 스펙으로 블록 JSON 작성 → (3) `PUT /posts/{postId}/contents` body: `{lockTimestamp, postStatus:"SAVED", postContents:{time,version,blocks}}` |
+| "블록 몇 개만 증분 편집" | (1) 필요한 만큼 `POST /blocks`(추가) · `PUT /blocks/{blockId}`(수정) · `DELETE /blocks/{blockId}`(삭제) · `PUT /blocks/{blockId}/move`(이동) — lockTimestamp 불필요 → (2) **마지막에 `POST /contents/sync` 1회** 로 POST_CONTENTS/POST_SEARCH 스냅샷 플러시 |
+| "특정 블록만 교체 + 즉시 검색 반영" | (1) `PUT /blocks/{blockId}` body: `{type, data, versionNo?}` → (2) `POST /contents/sync` |
 | "본문 갱신 + 발행" | (1) GET → lockTimestamp → (2) 블록 JSON 작성 → (3) `PUT /contents` body: `{lockTimestamp, postContents}` → (4) **본문 PUT 응답 lockTimestamp 로 `PUT /publish` body: `{publishFlag:1, lockTimestamp}`** — 본문 PUT 은 PUBLISH_FLAG 를 갱신하지 않으므로 발행은 항상 `/publish` 호출 필요. 또는 `block_builder.publish_post(...)` 헬퍼 사용. |
 | "삭제한 글 복원" | (1) `GET /posts/trash` → postId 매칭 → (2) `GET /posts/{postId}`로 최신 `lockTimestamp` → (3) `PUT /posts/{postId}/restore` body: `{lockTimestamp}` → DRAFT로 복원됨 안내 |
 | "휴지통 비우기 — 특정 포스트 영구 삭제" | (1) `GET /posts/trash` 표시 → 사용자 재확인 "복구 불가능, cascade 삭제됩니다" → (2) `GET /posts/{postId}` lockTimestamp → (3) `DELETE /posts/{postId}/permanent` body: `{lockTimestamp}` |

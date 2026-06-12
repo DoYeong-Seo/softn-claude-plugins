@@ -1,6 +1,6 @@
 ---
 name: blog-editor
-description: BlogN 블로그/포스트 관리 REST API(`api.v1.controller.blog`)를 자연어로 호출하여 블로그 조회·포스트 CRUD·본문 블록 일괄 저장·분류·댓글·좋아요를 처리하고, Editor.js 블록 JSON을 생성/검증/저장합니다. 11개 블록 타입(paragraph/header/list/checklist/code/quote/delimiter/table/image/embed/attaches), 이미지·첨부 파일 업로드(`POST /api/v1/files/upload`, PAT `file`+`blog` scope), YouTube·Vimeo 임베드, Markdown 양방향 변환(`markdown_to_document` / `document_to_markdown`)을 지원합니다. PAT(Personal Access Token) 인증 사용. 블록 본문은 Editor.js 표준 JSON 구조로 다루며 `PUT .../posts/{postId}/contents` 엔드포인트로 일괄 교체한다.
+description: BlogN 블로그/포스트 관리 REST API(`api.v1.controller.blog`)를 자연어로 호출하여 블로그 조회·포스트 CRUD·본문 블록 일괄 저장·증분 편집·분류·댓글·좋아요를 처리하고, Editor.js 블록 JSON을 생성/검증/저장합니다. 11개 블록 타입(paragraph/header/list/checklist/code/quote/delimiter/table/image/embed/attaches), 이미지·첨부 파일 업로드(`POST /api/v1/files/upload`, PAT `file`+`blog` scope), YouTube·Vimeo 임베드, Markdown 양방향 변환(`markdown_to_document` / `document_to_markdown`)을 지원합니다. PAT(Personal Access Token) 인증 사용. 블록 본문은 Editor.js 표준 JSON 구조로 다루며 `PUT .../posts/{postId}/contents` 로 일괄 교체하거나, `POST/PUT/DELETE .../posts/{postId}/blocks*` 로 블록 1개 단위 증분 편집 후 `POST .../posts/{postId}/contents/sync` 로 스냅샷을 동기화한다.
 allowed-tools: Read, Bash, Write, Grep
 ---
 
@@ -32,7 +32,8 @@ BlogN 프로젝트의 블로그·포스트 백엔드(`api.v1.controller.blog.*`)
 5. **메타데이터 vs 본문 — 두 개의 PUT을 구분한다**
    - 메타데이터(제목/분류/태그/상태/노출/복사/공유): `PUT /api/v1/blog/{blogId}/posts/{postId}` — `postContents` 미수신.
    - 본문 블록 일괄 갱신: `PUT /api/v1/blog/{blogId}/posts/{postId}/contents` — Editor.js 풀 JSON(`time`/`version`/`blocks[]`)을 받아 `BLOG_POST_BLOCK` 행을 모두 삭제 후 재INSERT, `POST_CONTENTS` 컬럼도 동기화.
-   - 두 엔드포인트 모두 `lockTimestamp` 필수, 충돌 시 409. 본문 PUT은 편집 권한(`BlogPostEditUserService.isAuthorized`) 보유자만 호출 가능 (403).
+   - 본문 블록 증분 편집: `POST/PUT/DELETE .../{postId}/blocks*` — 블록 1개 단위 추가/수정/삭제/이동. **lockTimestamp 미사용**(add/move=서버 postId 락, modify=`versionNo`). 편집 후 **`POST .../{postId}/contents/sync`** 로 스냅샷 갱신 필요. 자세히는 [증분 블록 편집](#증분-블록-편집--blocks--contentssync).
+   - 메타 PUT·본문 PUT은 `lockTimestamp` 필수, 충돌 시 409. 본문 PUT/블록 편집 모두 편집 권한(`BlogPostEditUserService.isAuthorized`) 보유자만 호출 가능 (403).
 
 ## 환경 설정
 
@@ -167,6 +168,7 @@ claude.ai에는 환경변수가 없다. 사용자가 첫 호출에서 본 스킬
 | **포스트 영구 삭제(hard delete)** | "영구 삭제", "완전히 지워", "휴지통 비워" | **강한 재확인 필수** — cascade, 복구 불가. `DELETE /posts/{postId}/permanent` |
 | **블록 JSON 생성** | "이 포스트 본문 마크다운으로 만들어줘", "Editor.js JSON 생성" | [BLOCKS.md](BLOCKS.md) 스펙으로 JSON 작성 → 사용자에게 제공 |
 | **블록 JSON 검증** | "이 JSON이 Editor.js 호환인지 봐줘" | type/data 필드 검증 후 보고 |
+| **증분 블록 편집** | "이 블록만 고쳐", "문단 하나 끼워넣어", "블록 순서 바꿔", "이 블록 지워" | 블록 1개 단위 `/blocks*` 호출(lockTimestamp 불필요) → **마지막에 `/contents/sync` 1회**. [증분 블록 편집](#증분-블록-편집--blocks--contentssync) 절 참조 |
 | **Markdown → 본문** | "이 md 파일을 포스트 본문에 넣어줘", "md 로 포스트 만들어" | `markdown_to_document(md)` → `put_post_contents(...)` |
 | **본문 → Markdown** | "이 포스트 본문 markdown 으로 뽑아줘", "내용 md 로 export" | `get_post(...)` → `document_to_markdown(post['postContents'])` |
 | **이미지 삽입** | "이 png 파일 본문에 넣어줘", "이미지 추가" | `upload_image(path, post_id=...)` → image 블록 dict, blocks 에 append 후 `put_post_contents` |
@@ -257,6 +259,7 @@ curl -sS -X POST "https://back.softn.kr/api/v1/blog/${BLOG_ID}/posts" \
 - 블록 빌더: `paragraph`, `header(text, level)`, `code(source)`, `ulist(items)`, `olist(items)`, `checklist(items)`, `quote(text, caption, alignment)`, `delimiter()`, `table(rows, with_headings)`, `image(url, caption, ...)`, `embed(source, caption, …)`, `attaches(file_id, file_name, file_size, extension, url?, title?)`
 - 문서 wrapper: `document(blocks)` — `{time, version, blocks}` 자동 구성
 - HTTP (PAT): `create_post(...)`, `get_post(...)`, `update_post_meta(...)`, `put_post_contents(...)` — `BLOGN_PAT_TOKEN` 환경변수 자동 사용, `BlognApiError` 로 표준화된 에러
+- 증분 블록 편집 (PAT): `add_block(...)`, `update_block(...)`, `delete_block(...)`, `move_block(...)`, `sync_contents(...)` — 블록 1개 단위 편집 후 스냅샷 동기화. lockTimestamp 불필요 (자세히는 [증분 블록 편집](#증분-블록-편집--blocks--contentssync) 절)
 - 파일 업로드 (PAT): `upload_image(path, post_id=…)`, `upload_attachment(path, post_id=…)`, `get_file(file_id=…)`, `delete_file(file_id=…)` — `POST /api/v1/files/upload` (PAT `file`+`blog` scope) 로 multipart 업로드 후 image/attaches 블록 dict 를 반환. CSRF prefetch 불필요
 - Markdown 변환: `markdown_to_document(md)` ↔ `document_to_markdown(doc)` — 11개 블록 + 인라인 마크업 round-trip 가능 (자세한 규칙·한계는 BLOCKS.md §6)
 
@@ -382,6 +385,48 @@ open("backup.md", "w", encoding="utf-8").write(
 
 > ⚠️ **2026-05-19 이전 동작과의 차이**: 이전에는 서버가 lockTimestamp를 `replaceAllBlocks` 이후에 비교했기 때문에, 포스트를 막 생성하고 본문 PUT을 첫 시도하는 흐름에서도 자기 자신의 부수효과로 인해 409가 발생했다. 현재는 사전 검증으로 바뀌어 **POST 응답의 lockTimestamp를 그대로 첫 본문 PUT에 사용 가능**하다.
 
+### 증분 블록 편집 — `/blocks*` + `/contents/sync`
+
+본문을 통째로 갈아끼우는 `PUT /contents`(일괄 교체) 외에, **블록 1개 단위로 추가/수정/삭제/이동**하는 증분 경로가 있다. 이미 긴 본문이 있고 일부 블록만 손대거나, 순서만 바꾸는 작업에서는 전체를 다시 보내는 대신 증분 경로가 효율적이다.
+
+| 연산 | 엔드포인트 | body | 동시성 |
+|------|-----------|------|--------|
+| 블록 추가 | `POST .../{postId}/blocks` | `{type, index, data?, blockId?}` | 서버 postId 락 (lockTimestamp 불필요) |
+| 블록 수정 | `PUT .../{postId}/blocks/{blockId}` | `{type, data, versionNo?}` | `versionNo` 낙관적 동시성 (불일치 409) |
+| 블록 삭제 | `DELETE .../{postId}/blocks/{blockId}` | 없음 | — (이후 인덱스 자동 당김) |
+| 블록 이동 | `PUT .../{postId}/blocks/{blockId}/move` | `{fromIndex, toIndex}` | 서버 postId 락 (lockTimestamp 불필요) |
+| 본문 동기화 | `POST .../{postId}/contents/sync` | 없음 | — |
+
+**일괄 교체 vs 증분 — 잠금 모델이 다르다:**
+- **일괄 교체 `PUT /contents`**: `lockTimestamp` 필수(포스트 단위 Optimistic Lock), 블록 전삭제+재INSERT, 위키링크 전체 재계산, `POST_CONTENTS`/`POST_SEARCH` 스냅샷 즉시 갱신.
+- **증분 `/blocks*`**: `lockTimestamp` **안 씀**. add/move 는 서버가 postId 단위 락으로 인덱스 원자성 보장, modify 는 블록별 `versionNo` 로 충돌 검출(생략하면 마지막-쓰기-우선). **두 경로의 동시성 토큰을 혼동하지 말 것** — 증분 호출에 lockTimestamp 를 넣어도 무시된다.
+
+> ⚠️ **반드시 기억할 것 — 증분 편집 후 `/contents/sync`**: `/blocks*` 호출은 `BLOG_POST_BLOCK` 행만 바꾼다. 공개 본문 스냅샷(`POST_CONTENTS`)과 검색 인덱스(`POST_SEARCH`)는 **자동으로 갱신되지 않는다.** 블록 편집 한 묶음을 끝낸 뒤 **`POST /contents/sync` 를 한 번 호출**해 스냅샷을 플러시한다. 호출하기 전에는 GET 단건의 `postContents` 가 옛 내용을 보일 수 있다. (add/modify 시 해당 블록의 위키링크는 그 자리에서 동기화되지만, 스냅샷·검색은 sync 전까지 stale.)
+
+**IDOR/권한**: 모든 `/blocks*` 호출은 편집 권한(EDITOR) 검증 후, `blockId` 가 해당 `postId` 소속인지 확인한다 — 타 포스트 블록을 건드리려 하면 404. 포스트 미존재/blogId 불일치도 404.
+
+**권장 — `block_builder.py` 헬퍼**:
+```python
+import os, sys
+sys.path.insert(0, os.environ["CLAUDE_PLUGIN_ROOT"] + "/skills/blog-editor")
+from block_builder import (
+    paragraph, header,
+    add_block, update_block, delete_block, move_block, sync_contents,
+)
+
+# 3번 위치에 새 문단 삽입
+add_block(blog_id="DY-DEVEL", post_id="P00001", block=paragraph("추가 문단"), index=3)
+# 특정 블록 내용 교체 (헤더로)
+update_block(blog_id="DY-DEVEL", post_id="P00001", block_id="abc1234567", block=header("새 제목", level=2))
+# 블록 삭제 / 이동
+delete_block(blog_id="DY-DEVEL", post_id="P00001", block_id="def8901234")
+move_block(blog_id="DY-DEVEL", post_id="P00001", block_id="ghi5678901", from_index=5, to_index=2)
+# 편집 마무리 — 스냅샷/검색 인덱스 플러시 (꼭 마지막에 1회)
+sync_contents(blog_id="DY-DEVEL", post_id="P00001")
+```
+- `add_block`/`update_block` 의 `block` 인자는 `paragraph()`/`header()`/`table()` 등 빌더가 반환한 dict 를 그대로 받는다(빌더가 `type`/`data` 를 채움).
+- `update_block(version_no=...)` 로 협업 충돌 검출(409). 단독 편집이면 생략 가능.
+
 ## 안전 규칙 체크리스트
 
 매 호출 직전 다음을 확인:
@@ -395,6 +440,7 @@ open("backup.md", "w", encoding="utf-8").write(
 - [ ] 블록 JSON을 생성한 경우, type/data 스키마가 [BLOCKS.md](BLOCKS.md)와 일치하는가?
 - [ ] 본문 저장 요청인 경우, `lockTimestamp`를 적절히 확보(직전 응답 재사용 또는 GET)했고, `postStatus` 변경(특히 `PUBLISHED`)에 대해 사용자 확인을 받았는가?
 - [ ] 본문 PUT의 `postContents`가 wrapper(`time`/`version`/`blocks`) 형식을 갖췄는가? (단순 blocks 배열만 보내면 400)
+- [ ] **증분 블록 편집(`/blocks*`)인 경우**: lockTimestamp 를 넣지 않았는가?(무시됨) 블록 수정은 협업 충돌 검출이 필요하면 `versionNo` 를 포함했는가? 그리고 **편집 묶음 끝에 `POST /contents/sync` 를 호출**해 `POST_CONTENTS`/`POST_SEARCH` 스냅샷을 플러시했는가?
 - [ ] **발행(PUBLISHED 전환)인 경우, 메타 PUT(`/posts/{postId}`)이 아니라 전용 `PUT /posts/{postId}/publish` 를 사용했는가?** body: `{publishFlag: 1, lockTimestamp}`. 발행 취소는 `{publishFlag: 0, lockTimestamp}`. 메타 PUT body 에 `postStatus`/`publishFlag` 를 넣어도 SQL 이 받지 않아 무시된다.
 - [ ] **이미지/첨부 업로드**: PAT 이 `file` scope(+ BLOG_POST 면 `blog`) 를 보유했는가? `post_id`(→ bindingKey) 를 전달했는가? (누락 시 SYS_FILE.BINDING_KEY=null → 포스트 삭제 cascade 누락). 사이즈 상한(image 10MB / attach 20MB) 과 차단 확장자(`svg`, `exe`, `php` 등) 를 호출 전 검토했는가?
 - [ ] **embed 블록**: source URL 이 YouTube/Vimeo 화이트리스트에 해당하는가? (CSP `frame-src` 와 일치해야 iframe 이 렌더된다)
@@ -496,6 +542,17 @@ open("backup.md", "w", encoding="utf-8").write(
 - `embed("https://youtu.be/dQw4w9WgXcQ", caption="...")` → embed 블록 dict (업로드 불필요)
 - 기존 본문 + lockTimestamp fetch → blocks 배열 끝에 append → `put_post_contents`
 - YouTube/Vimeo 외 URL 이면 `ValueError` — 사용자에게 화이트리스트(CSP 와 정렬) 사유 안내
+
+**예 12:** "포스트 abc123 의 3번째 블록만 이 문장으로 고치고, 맨 앞에 인용구 하나 추가해줘"
+- 증분 경로 사용 (전체 본문 재전송 불필요, lockTimestamp 불필요):
+  - 수정: `update_block(blog_id, post_id="abc123", block_id="<3번째 블록 ID>", block=paragraph("새 문장"))`
+  - 추가: `add_block(blog_id, post_id="abc123", block=quote("인용 문구"), index=0)`
+- **마무리**: `sync_contents(blog_id, post_id="abc123")` 1회 호출 → `POST_CONTENTS`/`POST_SEARCH` 스냅샷 플러시. (이 호출 전까지 공개 본문/검색 결과는 옛 내용)
+- 블록 ID 를 모르면 먼저 `GET /posts/abc123` 로 `postContents.blocks[]` 의 `id`/순서를 확인
+
+**예 13:** "포스트 abc123 의 마지막 블록을 두 번째 위치로 올려줘"
+- `GET /posts/abc123` 로 현재 블록 순서·개수 파악 → `move_block(blog_id, post_id="abc123", block_id="<해당 블록 ID>", from_index=<마지막>, to_index=1)`
+- `sync_contents(...)` 로 마무리
 
 ## 사용자가 명시하지 않은 정보 처리
 
