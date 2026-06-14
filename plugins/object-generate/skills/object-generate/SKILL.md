@@ -166,6 +166,20 @@ temp/
 | "temp가 아니라 다른 곳에" | `--output-dir <path>` |
 | 여러 테이블 나열 | 공백으로 구분 |
 | "기존 파일 보존" / "비우지 말고" | `--no-clean` |
+| "BasicVO 위치가 달라" / 자동 감지 무시하고 강제 지정 | `--basic-vo-package <pkg>` (예: `cmmn.service`) |
+
+## 감사(audit) 필드 / BasicVO 관례
+
+생성되는 EVO 는 감사 필드를 자체 필드로 만들지 않고 `BasicVO` 를 상속한다. 스크립트는 **테이블 컬럼을 보고 두 가지 명명 관례를 자동 감지**한다:
+
+| 관례 | 감사 컬럼 | 상속 BasicVO 위치 | 예시 프로젝트 |
+|------|-----------|--------------------|----------------|
+| create/modify | `create_*`, `modify_*`, `lock_timestamp` | `{basePackage}.cmmn.vo.BasicVO` | BlogN |
+| append/update | `append_*`(+`append_user_device`), `update_*`, `lock_timestamp` | `{basePackage}.cmmn.service.BasicVO` | QuizN |
+
+- 감사 컬럼은 EVO 에서 제외되어 `BasicVO` 상속으로 처리된다. (양쪽 관례 컬럼명이 겹치지 않아 한 DB/여러 테이블이 섞여도 안전)
+- INSERT 시 `*_datetime`·`lock_timestamp` 는 `now()` 로, UPDATE 시 등록(생성) 감사필드(`create_*`/`append_*`)는 SET 에서 제외되고 수정 감사 시각(`modify_datetime`/`update_datetime`)·`lock_timestamp` 는 `now()` 로 채워진다.
+- `BasicVO` 위치가 위 기본값과 다르면 `--basic-vo-package` 로 강제 지정한다.
 
 ## 오류 처리
 

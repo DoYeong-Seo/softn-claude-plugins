@@ -29,11 +29,52 @@ DB_CONFIG = {
 # 우선순위: --package 인자 > BLOGN_BASE_PACKAGE 환경변수 > 기본값(com.softn.blogn)
 BASE_PACKAGE = os.environ.get('BLOGN_BASE_PACKAGE', 'com.softn.blogn')
 
-# BasicVO 속성 (EVO에서 제외할 필드들)
-BASIC_VO_ATTRIBUTES = [
+# 감사(audit) 필드 — 두 가지 명명 관례를 모두 지원한다.
+#  · create/modify 관례: BasicVO 가 {base}.cmmn.vo 에 위치 (예: BlogN)
+#  · append/update 관례: BasicVO 가 {base}.cmmn.service 에 위치하고
+#    append_user_device 까지 포함한다 (예: QuizN)
+# 두 관례의 컬럼명은 서로 겹치지 않으므로, 역할별 집합에 양쪽 이름을 모두 담아 두면
+# 실제 테이블에 존재하는 컬럼만 매칭되어 안전하게 동작한다.
+
+# 등록(생성) 시점 감사 필드 — EVO 에서 제외하고, UPDATE SET 에서도 제외한다.
+AUDIT_CREATE_FIELDS = [
     'create_datetime', 'create_user_id', 'create_user_ip',
-    'modify_datetime', 'modify_user_id', 'modify_user_ip', 'lock_timestamp'
+    'append_datetime', 'append_user_id', 'append_user_ip', 'append_user_device',
 ]
+
+# 수정 시점 감사 필드 — EVO 에서 제외한다. (UPDATE SET 에서는 갱신된다)
+AUDIT_MODIFY_FIELDS = [
+    'modify_datetime', 'modify_user_id', 'modify_user_ip',
+    'update_datetime', 'update_user_id', 'update_user_ip',
+]
+
+# 낙관적 잠금 타임스탬프
+AUDIT_LOCK_FIELD = 'lock_timestamp'
+
+# BasicVO 가 선언하는 속성 (EVO 에서 제외할 필드들)
+BASIC_VO_ATTRIBUTES = AUDIT_CREATE_FIELDS + AUDIT_MODIFY_FIELDS + [AUDIT_LOCK_FIELD]
+
+# INSERT 시 now() 로 채우는 시각 필드
+INSERT_NOW_FIELDS = {
+    'create_datetime', 'modify_datetime',
+    'append_datetime', 'update_datetime',
+    AUDIT_LOCK_FIELD,
+}
+
+# UPDATE 시 now() 로 채우는 시각 필드
+UPDATE_NOW_FIELDS = {
+    'modify_datetime', 'update_datetime',
+    AUDIT_LOCK_FIELD,
+}
+
+# 감사 관례별 BasicVO 패키지 (클래스명은 두 관례 모두 BasicVO 로 동일)
+BASIC_VO_PACKAGE_BY_CONVENTION = {
+    'create': 'cmmn.vo',       # create/modify 관례 (BlogN)
+    'append': 'cmmn.service',  # append/update 관례 (QuizN)
+}
+
+# --basic-vo-package 로 지정 시 관례 기반 기본값을 덮어쓴다 (미지정이면 None → 자동 감지)
+BASIC_VO_PACKAGE_OVERRIDE = None
 
 # SQL 타입 -> Java 타입 매핑
 TYPE_MAPPING = {
@@ -149,6 +190,29 @@ def map_sql_type_to_java(sql_type: str) -> str:
     return TYPE_MAPPING.get(sql_type.upper(), 'String')
 
 
+def detect_audit_convention(columns: List[Dict]) -> str:
+    """테이블 컬럼으로 감사 필드 명명 관례를 감지합니다.
+
+    append_*/update_* 컬럼이 있으면 'append', 아니면 'create'(기본).
+    감사 필드가 전혀 없는 테이블도 'create'(BasicVO 가 cmmn.vo)로 간주합니다.
+    """
+    names = {col['COLUMN_NAME'].lower() for col in columns}
+    if names & {'append_datetime', 'append_user_id', 'update_datetime', 'update_user_id'}:
+        return 'append'
+    return 'create'
+
+
+def get_basic_vo_package(columns: List[Dict]) -> str:
+    """EVO 가 상속할 BasicVO 의 패키지(베이스 패키지 이하)를 반환합니다.
+
+    --basic-vo-package 로 지정한 값이 있으면 그것을, 없으면 감지된 관례 기본값을 씁니다.
+    """
+    if BASIC_VO_PACKAGE_OVERRIDE:
+        return BASIC_VO_PACKAGE_OVERRIDE
+    convention = detect_audit_convention(columns)
+    return BASIC_VO_PACKAGE_BY_CONVENTION[convention]
+
+
 def generate_serial_version_uid() -> str:
     """serialVersionUID를 생성합니다."""
     # 타임스탬프 기반으로 안전한 serialVersionUID 생성
@@ -198,8 +262,11 @@ def generate_evo_class(module: str, submodule: str, entity_name: str, table_name
     if needs_date_import:
         code += "\nimport java.util.Date;\n"
 
+    # 감사 관례에 따라 BasicVO 패키지를 결정한다 (create→cmmn.vo, append→cmmn.service)
+    basic_vo_package = get_basic_vo_package(columns)
+
     code += f"""
-import {BASE_PACKAGE}.cmmn.vo.BasicVO;
+import {BASE_PACKAGE}.{basic_vo_package}.BasicVO;
     
 import lombok.Getter;
 import lombok.Setter;
@@ -730,7 +797,7 @@ def generate_basic_dao_sql(module: str, submodule: str, table_name: str, table_c
         column_name = col['COLUMN_NAME'].lower()
         field_name = get_entity_name(col['COLUMN_NAME'])
 
-        if column_name in ['create_datetime', 'modify_datetime', 'lock_timestamp']:
+        if column_name in INSERT_NOW_FIELDS:
             value = "now()"
         else:
             value = f"#{{{field_name}}}"
@@ -762,11 +829,11 @@ def generate_basic_dao_sql(module: str, submodule: str, table_name: str, table_c
         if col['COLUMN_KEY'] == 'PRI':
             continue
 
-        # APPEND 필드는 제외
-        if column_name_lower in ['create_datetime', 'create_user_id', 'create_user_ip']:
+        # 등록(생성) 시점 감사 필드는 수정하지 않는다
+        if column_name_lower in AUDIT_CREATE_FIELDS:
             continue
 
-        if column_name_lower in ['modify_datetime', 'lock_timestamp']:
+        if column_name_lower in UPDATE_NOW_FIELDS:
             value = "now()"
         else:
             value = f"#{{{field_name}}}"
@@ -1009,6 +1076,8 @@ def generate_all_files(table_names: List[str], output_dir: str):
         module, submodule, entity_name = extract_module_and_entity(table_name)
         print(f"  ✓ 모듈: {module}.{submodule}, 엔티티: {entity_name}")
         print(f"  ✓ 테이블 설명: {table_comment}")
+        print(f"  ✓ 감사 관례: {detect_audit_convention(columns)} "
+              f"(BasicVO → {BASE_PACKAGE}.{get_basic_vo_package(columns)}.BasicVO)")
 
         # 출력 디렉토리 설정
         java_service_dir = os.path.join(output_dir, "java", "com", "softn", "blogn", module, submodule, "service")
@@ -1068,7 +1137,7 @@ def generate_all_files(table_names: List[str], output_dir: str):
 
 def main():
     """메인 함수"""
-    global BASE_PACKAGE
+    global BASE_PACKAGE, BASIC_VO_PACKAGE_OVERRIDE
     parser = argparse.ArgumentParser(description='Blogn Basic Object Generator')
     parser.add_argument('tables', nargs='+', help='테이블명 (1개 이상)')
     parser.add_argument('--output-dir', default='temp', help='출력 디렉토리 (기본: temp)')
@@ -1076,12 +1145,19 @@ def main():
                         help='출력 디렉토리를 비우지 않고 기존 파일 위에 생성합니다.')
     parser.add_argument('--package', default=None,
                         help='베이스 패키지 (미지정 시 BLOGN_BASE_PACKAGE 환경변수 또는 com.softn.blogn)')
+    parser.add_argument('--basic-vo-package', default=None,
+                        help='BasicVO 패키지(베이스 패키지 이하). 미지정 시 감사 관례로 자동 감지 '
+                             '(create/modify→cmmn.vo, append/update→cmmn.service)')
 
     args = parser.parse_args()
 
     # 베이스 패키지 결정 (--package > 환경변수/기본값)
     if args.package:
         BASE_PACKAGE = args.package
+
+    # BasicVO 패키지 오버라이드 (지정 시 관례 자동 감지보다 우선)
+    if args.basic_vo_package:
+        BASIC_VO_PACKAGE_OVERRIDE = args.basic_vo_package
 
     # 출력 디렉토리 절대 경로로 변환
     output_dir = os.path.abspath(args.output_dir)
