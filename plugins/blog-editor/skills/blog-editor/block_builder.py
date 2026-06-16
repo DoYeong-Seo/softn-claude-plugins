@@ -9,6 +9,7 @@ PAT 헤더, lockTimestamp 흐름) 를 제거하는 공용 유틸리티.
         header, paragraph, code, ulist, olist, checklist, quote,
         delimiter, table, image, embed, attaches,
         document, create_post, get_post, put_post_contents, update_post_meta,
+        list_labels, create_label, update_label, delete_label, reorder_labels,
         upload_image, upload_attachment, get_file, delete_file,
         markdown_to_document, document_to_markdown,
     )
@@ -393,18 +394,24 @@ def create_post(
     clsf_id: str | None = None,
     post_tag: str | None = None,
     post_status: str = "DRAFT",
+    label_ids: list[str] | None = None,
     extra: dict | None = None,
     token: str | None = None,
 ) -> dict:
     """POST /api/v1/blog/{blogId}/posts — 메타데이터만 등록. 응답의 첫 data 항목(VO) 반환.
 
     반환 dict 의 ``postId`` 와 ``lockTimestamp`` 를 이어지는 put_post_contents 에 넘기면 된다.
+
+    ``label_ids`` 를 주면 라벨 매핑을 함께 지정한다. 모두 해당 blog 소유 라벨이어야 하며,
+    하나라도 아니면 400(`BLOG_BAD_REQUEST`). 응답 VO 의 ``labelIds`` 에 echo 된다.
     """
     body: dict[str, Any] = {"postTitle": title, "postStatus": post_status}
     if clsf_id:
         body["clsfId"] = clsf_id
     if post_tag is not None:
         body["postTag"] = post_tag
+    if label_ids is not None:
+        body["labelIds"] = list(label_ids)
     if extra:
         body.update(extra)
     return _first(_request("POST", f"/api/v1/blog/{blog_id}/posts", body=body, token=token))
@@ -426,6 +433,12 @@ def update_post_meta(
     """PUT /api/v1/blog/{blogId}/posts/{postId} — 제목/태그/상태 등 메타데이터 갱신.
 
     `updates` 는 변경할 필드만 (예: {"postStatus": "PUBLISHED"}). lockTimestamp 는 자동 포함.
+
+    라벨 매핑은 `updates["labelIds"]` 로 처리한다 — **null/미포함과 빈 배열의 의미가 다르다**:
+    - 키 없음 → 기존 라벨 매핑 유지(변경 없음)
+    - ``[]`` → 모든 라벨 매핑 삭제
+    - ``["BLa", "BLb"]`` → 소유 검증(IDOR) 후 전체 교체. 비소유 라벨 포함 시 400(`BLOG_BAD_REQUEST`).
+    라벨 매핑은 메타 PUT 으로만 처리하며 본문 PUT(`/contents`) 과는 무관하다.
     """
     body = dict(updates)
     body["lockTimestamp"] = lock_timestamp
@@ -596,6 +609,79 @@ def sync_contents(*, blog_id: str, post_id: str, token: str | None = None) -> di
     return _first(_request(
         "POST", f"/api/v1/blog/{blog_id}/posts/{post_id}/contents/sync", token=token,
     ))
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 블로그 라벨 (BlogLabelApiController) — ENDPOINTS.md §6
+#
+# Base: /api/v1/blog/{blogId}/label. 목록(GET)은 인증 불필요, 변경 계열(POST/PUT/DELETE)은
+# `blog` scope + 블로그 소유자(OWNER) 만 가능. PUT/DELETE 는 lockTimestamp 필수(409 충돌 시
+# 재조회). labelName 은 블로그 내 중복 불가(409). 서비스 계층은 SPA 의 core 컨트롤러와 공유.
+# ─────────────────────────────────────────────────────────────────────
+
+
+def list_labels(*, blog_id: str, token: str | None = None) -> list[dict]:
+    """GET /api/v1/blog/{blogId}/label — 라벨 목록(라벨별 postCount 포함). data 배열 전체 반환.
+
+    각 원소(ApiBlogLabelVO): labelId(BL 접두) · blogId · labelName · labelColor ·
+    displayOrder · postCount(목록에서만 채워짐) · lockTimestamp.
+    인증 불필요 엔드포인트지만 헬퍼는 다른 호출과 동일하게 PAT 헤더를 붙인다(토큰 없으면 BlognApiError).
+    """
+    return _request("GET", f"/api/v1/blog/{blog_id}/label", token=token).get("data") or []
+
+
+def create_label(*, blog_id: str, label_name: str, label_color: str, token: str | None = None) -> dict:
+    """POST /api/v1/blog/{blogId}/label — 라벨 생성(→201). 생성된 VO 반환.
+
+    `labelId`/`displayOrder` 는 보내지 않는다(서버가 자동 발급·MAX+1 계산). OWNER 만 가능.
+    같은 블로그에 동일 labelName 이 있으면 409.
+    """
+    body = {"labelName": label_name, "labelColor": label_color}
+    return _first(_request("POST", f"/api/v1/blog/{blog_id}/label", body=body, token=token))
+
+
+def update_label(
+    *,
+    blog_id: str,
+    label_id: str,
+    lock_timestamp: str,
+    label_name: str | None = None,
+    label_color: str | None = None,
+    display_order: int | None = None,
+    token: str | None = None,
+) -> dict:
+    """PUT /api/v1/blog/{blogId}/label/{labelId} — 라벨 수정(→200). 갱신된 VO 반환.
+
+    보내지 않은 필드는 기존 값 유지. `lock_timestamp` 필수(목록 GET 또는 직전 응답값).
+    """
+    body: dict[str, Any] = {"lockTimestamp": lock_timestamp}
+    if label_name is not None:
+        body["labelName"] = label_name
+    if label_color is not None:
+        body["labelColor"] = label_color
+    if display_order is not None:
+        body["displayOrder"] = display_order
+    return _first(_request("PUT", f"/api/v1/blog/{blog_id}/label/{label_id}", body=body, token=token))
+
+
+def delete_label(*, blog_id: str, label_id: str, lock_timestamp: str, token: str | None = None) -> dict:
+    """DELETE /api/v1/blog/{blogId}/label/{labelId} — 라벨 삭제(→200). 응답 envelope 반환.
+
+    BLOG_POST_LABEL 매핑이 먼저 정리되므로 **연결된 포스트가 있어도 삭제된다**(포스트 자체는 유지).
+    OWNER 만 가능. `lock_timestamp` 필수. 삭제는 호출 전 사용자 확인 권장.
+    """
+    body = {"lockTimestamp": lock_timestamp}
+    return _request("DELETE", f"/api/v1/blog/{blog_id}/label/{label_id}", body=body, token=token)
+
+
+def reorder_labels(*, blog_id: str, orders: Iterable[dict], token: str | None = None) -> dict:
+    """PUT /api/v1/blog/{blogId}/label/order — 표시 순서 일괄 변경(→200). 응답 envelope 반환.
+
+    `orders` 는 `[{"labelId": ..., "displayOrder": ..., "lockTimestamp": ...}, ...]` 배열.
+    각 항목마다 해당 라벨의 최신 lockTimestamp 가 필요하다(보통 list_labels 결과에서 그대로 가져온다).
+    빈 배열/누락은 no-op(200). OWNER 만 가능.
+    """
+    return _request("PUT", f"/api/v1/blog/{blog_id}/label/order", body=list(orders), token=token)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1181,6 +1267,11 @@ __all__ = [
     "delete_block",
     "move_block",
     "sync_contents",
+    "list_labels",
+    "create_label",
+    "update_label",
+    "delete_label",
+    "reorder_labels",
     "upload_image",
     "upload_attachment",
     "get_file",

@@ -85,6 +85,7 @@
 - `pageIndex` (Integer, optional) — 기본 1
 - `clsfId` (String, optional) — 분류 필터
 - `postTag` (String, optional) — 태그 필터
+- `labelIds` (String, optional, 반복 가능) — **라벨 필터**. `?labelIds=BLa&labelIds=BLb` 또는 `?labelIds=BLa,BLb`. 지정한 라벨 중 **하나라도** 연결된 포스트만 노출(`BLOG_POST_LABEL` EXISTS IN, OR 조건). 빈/공백 값은 무시. 위 `clsfId`/`postTag`/`searchText` 와 함께 사용 가능. (라벨 카탈로그는 [§6](#6-blog-label-블로그-라벨--bloglabelapicontroller) 참조)
 - `searchText` (String, optional) — **제목/태그 부분 일치 검색** (`POST_TITLE LIKE %x% OR POST_TAG LIKE %x%`)
 
 **쿼리 파라미터(단건):**
@@ -102,9 +103,20 @@
 | `searchExposeFlag` | Integer | 선택 | 선택 | 0/1 |
 | `copyableFlag` | Integer | 선택 | 선택 | 0/1 |
 | `shareableFlag` | Integer | 선택 | 선택 | 0/1 |
+| `labelIds` | List\<String\> | 선택 | 선택 | 라벨 매핑 지정. **null/미포함과 빈 배열의 의미가 다르다** — 아래 표 참조. 응답 VO 에 echo |
 | `lockTimestamp` | String | — | **필수** | Optimistic Lock |
 
 서버 자동 설정: `postId`(서비스 자동 UUID), `blogId`(path), `userId`(토큰).
+
+**`labelIds` 매핑 의미 (POST/PUT 공통, 중요):**
+
+| 요청 `labelIds` | 동작 |
+|------|------|
+| 미포함 (필드 없음 / null) | 기존 라벨 매핑 **유지** (변경 없음) |
+| `[]` (빈 배열) | 모든 라벨 매핑 **삭제** |
+| `["BLa","BLb"]` | 블로그 소유 라벨인지 검증(IDOR) 후 **전체 교체** |
+
+> 전달한 라벨이 모두 해당 `blogId` 소유가 아니면 **400 (`BLOG_BAD_REQUEST`)** 으로 거부된다. 라벨 매핑은 **메타 PUT(`/posts/{postId}`)으로만** 처리하며, 본문 PUT(`/contents`)과는 무관하다.
 
 **DELETE / restore / permanent body:**
 - `lockTimestamp` (String, 필수) — 세 엔드포인트 모두 동일
@@ -188,7 +200,7 @@
 **응답**: `ApiResponseListVO<ApiBlogPostVO>` — `data[0]`에 갱신된 포스트 단건(새 `lockTimestamp` + `postContents` Map 포함).
 
 **응답 필드 (`ApiBlogPostVO`):**
-`postId`, `blogId`, `clsfId`, `clsfName`, `userId`, `userName`, `postTitle`, `postContents`(GET 단건만, Editor.js Map), `postTag`, `postStatus`, `versionNo`, `searchExposeFlag`, `copyableFlag`, `shareableFlag`, `hitCount`, `likeCount`, `commentCount`, `myLikeFlag`, `createDatetime`, `modifyDatetime`, `lockTimestamp`
+`postId`, `blogId`, `clsfId`, `clsfName`, `userId`, `userName`, `postTitle`, `postContents`(GET 단건만, Editor.js Map), `postTag`, `labelIds`(`List<String>` — 연결된 라벨 ID 배열, 목록·단건 모두 포함. 라벨명·색상은 [§6](#6-blog-label-블로그-라벨--bloglabelapicontroller) 라벨 목록과 조인), `postStatus`, `versionNo`, `searchExposeFlag`, `copyableFlag`, `shareableFlag`, `hitCount`, `likeCount`, `commentCount`, `myLikeFlag`, `createDatetime`, `modifyDatetime`, `lockTimestamp`
 
 > **lockTimestamp 형식**: `"yyyy-MM-dd HH:mm:ss"` (서버 로컬 시간, 보통 KST). PUT/DELETE 호출 시 응답에서 받은 값을 **그대로** 다시 보내야 한다. ISO 8601이나 UTC로 변환하면 문자열 equals 비교에 실패하여 409가 발생한다.
 
@@ -300,6 +312,87 @@
 
 ---
 
+## 6. Blog Label (블로그 라벨) — `BlogLabelApiController`
+
+블로그 단위 라벨(태그와 별개의, 색상 있는 분류 보조 수단). 한 포스트에 여러 라벨을 매핑할 수 있고, 라벨로 포스트 목록을 필터링한다. 서비스 계층은 SPA 의 세션 기반 `core` 컨트롤러와 공유하므로 동작은 동일하다. 라벨 **매핑**(어떤 포스트에 어떤 라벨)은 이 컨트롤러가 아니라 **포스트 POST/PUT 의 `labelIds`** ([§2](#2-blog-post-블로그-포스트--blogpostapicontroller))로 다룬다 — 이 컨트롤러는 라벨 **자체의 CRUD/순서**만 담당한다.
+
+| Method | Path | Role | 용도 |
+|--------|------|------|------|
+| GET | `/api/v1/blog/{blogId}/label` | PUBLIC | 라벨 목록 (라벨별 `postCount` 포함) |
+| POST | `/api/v1/blog/{blogId}/label` | OWNER | 라벨 생성 → **201** |
+| PUT | `/api/v1/blog/{blogId}/label/{labelId}` | OWNER | 라벨 수정 → 200 |
+| DELETE | `/api/v1/blog/{blogId}/label/{labelId}` | OWNER | 라벨 삭제 → 200 (연결 포스트 있어도 매핑 함께 정리, 포스트는 유지) |
+| PUT | `/api/v1/blog/{blogId}/label/order` | OWNER | 라벨 표시 순서 일괄 변경 → 200 |
+
+> 변경 계열(POST/PUT/DELETE)은 `blog` scope 토큰 + **블로그 소유자**만 가능. 목록 GET 은 인증 불필요.
+
+**POST/PUT body (`ApiBlogLabelVO`):**
+
+| 필드 | POST | PUT(/{labelId}) | 비고 |
+|------|------|------|------|
+| `labelName` | 필수 | 선택 | 라벨 이름. **블로그 내 중복 불가** (중복 시 409) |
+| `labelColor` | 필수 | 선택 | 라벨 색상 (예: `#FF6B6B`) |
+| `displayOrder` | — | 선택 | 표시 순서. POST 시 보내지 않음(서버가 MAX+1 자동) |
+| `lockTimestamp` | — | **필수** | Optimistic Lock. PUT/DELETE 에서 그대로 재전송 |
+
+생성(POST)은 `labelId`/`displayOrder` 를 보내지 않는다 — 서버가 자동 발급·계산한다. 수정(PUT)은 보내지 않은 필드는 기존 값 유지.
+
+**DELETE body:**
+- `lockTimestamp` (String, 필수). 삭제 시 `BLOG_POST_LABEL` 매핑이 먼저 정리되므로 연결 포스트가 있어도 삭제된다.
+
+**PUT /order body** — 라벨 객체 **배열**:
+```json
+[
+  {"labelId":"BLa","displayOrder":1,"lockTimestamp":"2026-06-16 10:00:00"},
+  {"labelId":"BLb","displayOrder":2,"lockTimestamp":"2026-06-16 10:00:01"}
+]
+```
+빈 배열/누락은 no-op(200). 각 항목마다 해당 라벨의 최신 `lockTimestamp` 필요(보통 라벨 목록 GET 결과에서 그대로 가져옴).
+
+**응답 필드 (`ApiBlogLabelVO`):**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `labelId` | String | 라벨 ID (서버 자동 발급, **`BL` 접두**) |
+| `blogId` | String | 블로그 ID |
+| `labelName` | String | 라벨 이름 (블로그 내 중복 불가) |
+| `labelColor` | String | 라벨 색상 |
+| `displayOrder` | Integer | 표시 순서 (생성 시 MAX+1 자동) |
+| `postCount` | int | 라벨에 연결된 포스트 수 (**목록 GET 에서만** 채워짐) |
+| `lockTimestamp` | String | Optimistic Lock (PUT/DELETE 시 그대로 재전송) |
+
+**호출 예시:**
+```bash
+# 라벨 목록 (인증 불필요, postCount 포함)
+curl -sS "https://back.softn.kr/api/v1/blog/${BLOG_ID}/label" -H "Accept: application/json"
+
+# 라벨 생성
+curl -sS -X POST "https://back.softn.kr/api/v1/blog/${BLOG_ID}/label" \
+  -H "Authorization: Bearer ${BLOGN_PAT_TOKEN}" -H "Content-Type: application/json" \
+  -d '{"labelName":"공지","labelColor":"#FF6B6B"}'
+
+# 라벨 수정 (lockTimestamp 필수)
+curl -sS -X PUT "https://back.softn.kr/api/v1/blog/${BLOG_ID}/label/BL...." \
+  -H "Authorization: Bearer ${BLOGN_PAT_TOKEN}" -H "Content-Type: application/json" \
+  -d '{"labelName":"중요 공지","lockTimestamp":"2026-06-16 10:00:00"}'
+
+# 라벨 삭제
+curl -sS -X DELETE "https://back.softn.kr/api/v1/blog/${BLOG_ID}/label/BL...." \
+  -H "Authorization: Bearer ${BLOGN_PAT_TOKEN}" -H "Content-Type: application/json" \
+  -d '{"lockTimestamp":"2026-06-16 10:00:00"}'
+
+# 순서 일괄 변경
+curl -sS -X PUT "https://back.softn.kr/api/v1/blog/${BLOG_ID}/label/order" \
+  -H "Authorization: Bearer ${BLOGN_PAT_TOKEN}" -H "Content-Type: application/json" \
+  -d '[{"labelId":"BLa","displayOrder":1,"lockTimestamp":"..."},{"labelId":"BLb","displayOrder":2,"lockTimestamp":"..."}]'
+```
+
+**헬퍼** (`block_builder.py`): `list_labels(blog_id=…)` / `create_label(blog_id=…, label_name=…, label_color=…)` / `update_label(blog_id=…, label_id=…, lock_timestamp=…, …)` / `delete_label(blog_id=…, label_id=…, lock_timestamp=…)` / `reorder_labels(blog_id=…, orders=[…])`. 포스트에 라벨을 달려면 `create_post(..., label_ids=[…])` 또는 `update_post_meta(..., updates={"labelIds":[…]})`.
+
+**라벨 관련 에러**: 라벨명 블로그 내 중복 → 409. PUT/DELETE lockTimestamp 불일치 → 409. 변경 계열에 비소유자 호출 → 403. 포스트 `labelIds` 에 비소유 라벨 포함 → 400(`BLOG_BAD_REQUEST`).
+
+---
+
 ## HTTP 상태 코드 요약
 
 | Code | 의미 |
@@ -342,6 +435,13 @@
 | "위키 링크 검색", "포스트 자동완성", "[[ 자동완성", "내부 링크 후보" | `GET /api/v1/blog/{blogId}/posts/wiki-search?q=...&limit=8&excludePostId=...` | Editor.js link-autocomplete 호환 데이터를 v1 envelope 로 래핑 |
 | "이 포스트를 인용한 글", "역링크", "backlink" | `GET /api/v1/blog/{blogId}/posts/{postId}/backlinks` | 응답 `data[]` 은 `ApiBlogPostLinkVO` |
 | "이 포스트가 가리키는 글", "참조하는 포스트", "forward link" | `GET /api/v1/blog/{blogId}/posts/{postId}/forward-links` | 응답 `data[]` 은 `ApiBlogPostLinkVO` |
+| "라벨 목록", "라벨 보여줘", "라벨별 글 수" | `GET /api/v1/blog/{blogId}/label` | 인증 불필요, 라벨별 `postCount` 포함 |
+| "라벨 만들어", "라벨 추가" | `POST /api/v1/blog/{blogId}/label` body: `{labelName, labelColor}` | OWNER만, 201. 이름 중복 시 409 |
+| "라벨 이름/색 바꿔", "라벨 수정" | `PUT /api/v1/blog/{blogId}/label/{labelId}` | OWNER만, lockTimestamp 필수 |
+| "라벨 삭제", "라벨 지워" | `DELETE /api/v1/blog/{blogId}/label/{labelId}` | OWNER만, lockTimestamp. 연결 포스트 있어도 매핑 정리 후 삭제 |
+| "라벨 순서 바꿔", "라벨 정렬" | `PUT /api/v1/blog/{blogId}/label/order` body: `[{labelId, displayOrder, lockTimestamp}, …]` | OWNER만 |
+| "OO 라벨 달린 글만 보여줘", "라벨로 필터" | `GET /api/v1/blog/{blogId}/posts?labelIds=BLa&labelIds=BLb` | 라벨 OR 매칭. 먼저 라벨 목록으로 이름→labelId 해석 |
+| "이 글에 라벨 달아/바꿔", "포스트에 라벨 지정/제거" | `POST` 또는 `PUT /api/v1/blog/{blogId}/posts/{postId}` body: `{labelIds:[…]}` | 매핑은 포스트 메타로. `[]`=전체 해제, 미포함=유지 |
 | "분류 목록", "카테고리", "분류별 포스트 수" | `GET /api/v1/blog/{blogId}/clsf` | 응답에 `postCount`/`publishedCount`/`deletedCount` 포함 |
 | "분류별 게시된 글 수", "휴지통에 있는 글 수" | `GET /api/v1/blog/{blogId}/clsf` 응답 활용 | 별도 호출 불필요 — 한 번에 다 옴 |
 | "분류 추가", "카테고리 생성" | `POST /api/v1/blog/{blogId}/clsf` | OWNER만 |
@@ -364,6 +464,9 @@
 |-----------|----------|
 | "블로그명만으로 포스트 작성" | (1) `GET /api/v1/blog`(내 블로그)에서 blogId 매칭 → 없으면 `GET /api/v1/blog/public` → (2) `POST /api/v1/blog/{blogId}/posts` |
 | "분류명만으로 포스트 분류 변경" | (1) `GET /api/v1/blog/{blogId}/clsf` → clsfId 매칭 → (2) `GET /api/v1/blog/{blogId}/posts/{postId}` lockTimestamp → (3) `PUT` |
+| "라벨명만으로 글 필터" | (1) `GET /api/v1/blog/{blogId}/label` → 이름→labelId 매핑 → (2) `GET /api/v1/blog/{blogId}/posts?labelIds=<id>&labelIds=<id>` |
+| "라벨명만으로 포스트에 라벨 지정" | (1) `GET /api/v1/blog/{blogId}/label` → labelId 매칭(없으면 `POST .../label` 로 생성) → (2) `GET /posts/{postId}` lockTimestamp → (3) `PUT /posts/{postId}` body: `{labelIds:[…], lockTimestamp}` |
+| "목록의 labelId 를 라벨명으로 표시" | (1) `GET /api/v1/blog/{blogId}/label` 1회 → id→{name,color} 맵 구성 → (2) 포스트 목록의 `labelIds` 를 맵으로 조인(N+1 회피) |
 | "PUT 전 lockTimestamp" | (1) GET으로 현재 lockTimestamp fetch → (2) body에 포함 → (3) PUT |
 | "DELETE 영향 범위 보고" | (1) GET 상세 → (2) cascade(블록·댓글·좋아요) 사용자 보고 → (3) 동의 → (4) DELETE |
 | "발행" / "공개" | (1) GET → lockTimestamp → (2) `PUT /publish` body: `{publishFlag:1, lockTimestamp}` — 서버가 POST_STATUS='PUBLISHED' 도 함께 갱신 |

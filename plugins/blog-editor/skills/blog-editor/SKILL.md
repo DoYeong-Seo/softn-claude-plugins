@@ -1,6 +1,6 @@
 ---
 name: blog-editor
-description: BlogN 블로그/포스트 관리 REST API(`api.v1.controller.blog`)를 자연어로 호출하여 블로그 조회·포스트 CRUD·본문 블록 일괄 저장·증분 편집·분류·댓글·좋아요를 처리하고, Editor.js 블록 JSON을 생성/검증/저장합니다. 11개 블록 타입(paragraph/header/list/checklist/code/quote/delimiter/table/image/embed/attaches), 이미지·첨부 파일 업로드(`POST /api/v1/files/upload`, PAT `file`+`blog` scope), YouTube·Vimeo 임베드, Markdown 양방향 변환(`markdown_to_document` / `document_to_markdown`)을 지원합니다. PAT(Personal Access Token) 인증 사용. 블록 본문은 Editor.js 표준 JSON 구조로 다루며 `PUT .../posts/{postId}/contents` 로 일괄 교체하거나, `POST/PUT/DELETE .../posts/{postId}/blocks*` 로 블록 1개 단위 증분 편집 후 `POST .../posts/{postId}/contents/sync` 로 스냅샷을 동기화한다.
+description: BlogN 블로그/포스트 관리 REST API(`api.v1.controller.blog`)를 자연어로 호출하여 블로그 조회·포스트 CRUD·본문 블록 일괄 저장·증분 편집·분류·라벨·댓글·좋아요를 처리하고, Editor.js 블록 JSON을 생성/검증/저장합니다. 11개 블록 타입(paragraph/header/list/checklist/code/quote/delimiter/table/image/embed/attaches), 이미지·첨부 파일 업로드(`POST /api/v1/files/upload`, PAT `file`+`blog` scope), YouTube·Vimeo 임베드, 라벨 CRUD·순서·포스트 라벨 매핑/필터(`/api/v1/blog/{blogId}/label`, 포스트 `labelIds`), Markdown 양방향 변환(`markdown_to_document` / `document_to_markdown`)을 지원합니다. PAT(Personal Access Token) 인증 사용. 블록 본문은 Editor.js 표준 JSON 구조로 다루며 `PUT .../posts/{postId}/contents` 로 일괄 교체하거나, `POST/PUT/DELETE .../posts/{postId}/blocks*` 로 블록 1개 단위 증분 편집 후 `POST .../posts/{postId}/contents/sync` 로 스냅샷을 동기화한다.
 allowed-tools: Read, Bash, Write, Grep
 ---
 
@@ -175,6 +175,8 @@ claude.ai에는 환경변수가 없다. 사용자가 첫 호출에서 본 스킬
 | **첨부 파일 삽입** | "이 pdf 첨부해줘", "파일 붙여" | `upload_attachment(path, post_id=...)` → attaches 블록 dict, blocks 에 append 후 `put_post_contents` |
 | **YouTube/Vimeo 임베드** | "이 유튜브 영상 본문에 임베드", "vimeo 링크 추가" | `embed(url)` → embed 블록 dict (업로드 불필요) |
 | **위키링크/백링크** | "이 글을 OO 포스트에 연결", "내부 링크 걸어줘", "[[ 자동완성", "이 글 역링크 보여줘" | 대상은 `wiki-search`로 탐색 → 본문 블록 텍스트에 `<a class="wikilink" data-post-id="…" data-blog-id="…">` 앵커 삽입 후 `/contents` 저장(백엔드가 `BLOG_POST_LINK` 자동 동기화). 역링크 조회는 `/backlinks`. 상세는 [BLOCKS.md §4.1](BLOCKS.md) |
+| **라벨 CRUD/순서** | "라벨 만들어줘", "라벨 이름/색 바꿔", "라벨 삭제", "라벨 순서 바꿔" | `/api/v1/blog/{blogId}/label` (OWNER, PUT/DELETE 는 lockTimestamp). 라벨 **자체** 관리 |
+| **포스트 라벨 매핑/필터** | "이 글에 OO 라벨 달아", "라벨 떼줘", "OO 라벨 달린 글만 보여줘" | 매핑은 포스트 메타 PUT 의 `labelIds`, 필터는 `GET /posts?labelIds=`. 이름→labelId 는 라벨 목록으로 해석 |
 | **댓글/좋아요/분류** | "댓글 달아줘", "좋아요 눌러줘", "분류 만들어줘" | 해당 엔드포인트 호출 |
 
 ### 2) 의도 → API 호출 매핑
@@ -258,8 +260,9 @@ curl -sS -X POST "https://back.softn.kr/api/v1/blog/${BLOG_ID}/posts" \
 **전체 11개 블록 타입 지원** + HTTP 헬퍼 + 파일 업로드 + Markdown 양방향 변환:
 - 블록 빌더: `paragraph`, `header(text, level)`, `code(source)`, `ulist(items)`, `olist(items)`, `checklist(items)`, `quote(text, caption, alignment)`, `delimiter()`, `table(rows, with_headings)`, `image(url, caption, ...)`, `embed(source, caption, …)`, `attaches(file_id, file_name, file_size, extension, url?, title?)`
 - 문서 wrapper: `document(blocks)` — `{time, version, blocks}` 자동 구성
-- HTTP (PAT): `create_post(...)`, `get_post(...)`, `update_post_meta(...)`, `put_post_contents(...)` — `BLOGN_PAT_TOKEN` 환경변수 자동 사용, `BlognApiError` 로 표준화된 에러
+- HTTP (PAT): `create_post(...)`(`label_ids=` 로 라벨 매핑 동시 지정 가능), `get_post(...)`, `update_post_meta(...)`(`updates={"labelIds":[…]}` 로 라벨 매핑 동기화), `put_post_contents(...)` — `BLOGN_PAT_TOKEN` 환경변수 자동 사용, `BlognApiError` 로 표준화된 에러
 - 증분 블록 편집 (PAT): `add_block(...)`, `update_block(...)`, `delete_block(...)`, `move_block(...)`, `sync_contents(...)` — 블록 1개 단위 편집 후 스냅샷 동기화. lockTimestamp 불필요 (자세히는 [증분 블록 편집](#증분-블록-편집--blocks--contentssync) 절)
+- 라벨 (PAT): `list_labels(blog_id=…)`, `create_label(blog_id=…, label_name=…, label_color=…)`, `update_label(blog_id=…, label_id=…, lock_timestamp=…, …)`, `delete_label(blog_id=…, label_id=…, lock_timestamp=…)`, `reorder_labels(blog_id=…, orders=[…])` — 라벨 자체 CRUD/순서. 변경 계열은 OWNER + lockTimestamp (ENDPOINTS.md §6)
 - 파일 업로드 (PAT): `upload_image(path, post_id=…)`, `upload_attachment(path, post_id=…)`, `get_file(file_id=…)`, `delete_file(file_id=…)` — `POST /api/v1/files/upload` (PAT `file`+`blog` scope) 로 multipart 업로드 후 image/attaches 블록 dict 를 반환. CSRF prefetch 불필요
 - Markdown 변환: `markdown_to_document(md)` ↔ `document_to_markdown(doc)` — 11개 블록 + 인라인 마크업 round-trip 가능 (자세한 규칙·한계는 BLOCKS.md §6)
 
@@ -444,6 +447,8 @@ sync_contents(blog_id="DY-DEVEL", post_id="P00001")
 - [ ] **발행(PUBLISHED 전환)인 경우, 메타 PUT(`/posts/{postId}`)이 아니라 전용 `PUT /posts/{postId}/publish` 를 사용했는가?** body: `{publishFlag: 1, lockTimestamp}`. 발행 취소는 `{publishFlag: 0, lockTimestamp}`. 메타 PUT body 에 `postStatus`/`publishFlag` 를 넣어도 SQL 이 받지 않아 무시된다.
 - [ ] **이미지/첨부 업로드**: PAT 이 `file` scope(+ BLOG_POST 면 `blog`) 를 보유했는가? `post_id`(→ bindingKey) 를 전달했는가? (누락 시 SYS_FILE.BINDING_KEY=null → 포스트 삭제 cascade 누락). 사이즈 상한(image 10MB / attach 20MB) 과 차단 확장자(`svg`, `exe`, `php` 등) 를 호출 전 검토했는가?
 - [ ] **embed 블록**: source URL 이 YouTube/Vimeo 화이트리스트에 해당하는가? (CSP `frame-src` 와 일치해야 iframe 이 렌더된다)
+- [ ] **라벨 변경(POST/PUT/DELETE)**: 블로그 **소유자(OWNER)** 인가? PUT/DELETE 에 최신 `lockTimestamp` 를 포함했는가? 라벨명이 블로그 내 중복은 아닌가(409)? 라벨 자체 관리는 `/label`, 포스트↔라벨 **매핑은 포스트 메타 PUT 의 `labelIds`** 로 구분했는가?
+- [ ] **포스트 `labelIds`**: `null`/미포함(유지)·`[]`(전체 해제)·`[...]`(전체 교체) 의 의미 차이를 의도대로 적용했는가? 전달 라벨이 모두 해당 blog 소유인가(아니면 400 `BLOG_BAD_REQUEST`)? 이름으로 받은 경우 라벨 목록으로 labelId 를 먼저 해석했는가?
 - [ ] **markdown 변환**: round-trip 손실 항목(블록 ID, image tunes, embed width/height, attaches title) 을 사용자에게 사전 고지했는가? 편집은 가급적 JSON 직접 다루고 markdown 은 import/export 보조용.
 
 ## 에러 처리
@@ -554,11 +559,29 @@ sync_contents(blog_id="DY-DEVEL", post_id="P00001")
 - `GET /posts/abc123` 로 현재 블록 순서·개수 파악 → `move_block(blog_id, post_id="abc123", block_id="<해당 블록 ID>", from_index=<마지막>, to_index=1)`
 - `sync_contents(...)` 로 마무리
 
+**예 14:** "'공지' 라벨 만들어줘 — 빨강"
+- OWNER 권한 + PAT(`blog` scope) 확인 → `create_label(blog_id, label_name="공지", label_color="#FF6B6B")`
+  (`POST /api/v1/blog/{blogId}/label`, `labelId`/`displayOrder` 는 서버 자동)
+- 같은 이름 라벨이 이미 있으면 409 → 사용자에게 중복 안내. 생성된 `labelId` 보고
+
+**예 15:** "이 포스트 abc123 에 '공지'·'중요' 라벨 달아줘"
+- `list_labels(blog_id)` → 이름으로 `labelId` 해석 (없는 이름은 사용자 확인 후 `create_label` 로 생성)
+- `get_post(blog_id, "abc123")` → 최신 `lockTimestamp`
+- `update_post_meta(blog_id, "abc123", lock_timestamp, updates={"labelIds":["BL공지","BL중요"]})`
+  — `labelIds` 는 **전체 교체**다. 기존 라벨을 유지하며 추가하려면 기존 `post["labelIds"]` 에 합쳐서 보낸다.
+- "라벨 다 떼줘"면 `updates={"labelIds":[]}`. 비소유 라벨이 섞이면 400(`BLOG_BAD_REQUEST`)
+
+**예 16:** "'공지' 라벨 달린 글만 보여줘"
+- `list_labels(blog_id)` → "공지" → `labelId` 해석
+- `GET /api/v1/blog/{blogId}/posts?pageIndex=1&labelIds=<labelId>` (여러 개면 `&labelIds=` 반복 — OR 매칭)
+- 목록 출력 시 각 포스트의 `labelIds` 를 라벨 목록과 조인해 라벨명·색상 표시(라벨 목록은 1회만 조회, N+1 회피)
+
 ## 사용자가 명시하지 않은 정보 처리
 
 - **blogId 누락**: project.json(프로젝트별 → 전역) → 둘 다 없으면 [프로젝트 설정 부트스트랩](#프로젝트-설정-부트스트랩--파일이-없을-때-생성-유도)으로 진입(변경/내-블로그 작업에 한해 1회 생성 유도) → `GET /api/v1/blog`로 후보 추출 → 모호하면 사용자 확인.
 - **postId 누락**: 가장 최근 조회 결과 또는 `GET /api/v1/blog/{blogId}/posts`로 제목 매칭 → 모호하면 사용자 확인.
-- **lockTimestamp가 필요한 PUT/DELETE**: 호출 직전 GET으로 최신값 fetch → body에 포함.
+- **lockTimestamp가 필요한 PUT/DELETE**: 호출 직전 GET으로 최신값 fetch → body에 포함. (라벨 PUT/DELETE/order 도 동일 — 라벨 목록 GET 의 `lockTimestamp` 사용.)
+- **라벨 이름만 주어짐**: `GET /api/v1/blog/{blogId}/label`로 이름→`labelId` 해석. 매칭 라벨이 없으면 사용자에게 생성 여부 확인(있으면 그 ID, 신규면 `create_label`). 모호(동일 이름 없음/오타)하면 후보 제시.
 - **블록 ID**: 새로 생성 시 `[a-zA-Z0-9]{10}` 무작위 (Editor.js 기본). 기존 블록 갱신은 원본 ID 유지.
 - **블록 type 미지정**: paragraph로 기본 처리.
 

@@ -1,6 +1,6 @@
 # blog-editor
 
-Claude Code 플러그인 스킬 — BlogN 블로그/포스트 관리 REST API(`https://back.softn.kr/api/v1/blog/...`)를 자연어로 호출합니다. 포스트 CRUD, 본문 블록(Editor.js JSON) 일괄 저장 및 블록 단위 증분 편집(추가/수정/삭제/이동 + 동기화), 이미지·첨부 업로드, YouTube/Vimeo 임베드, Markdown 양방향 변환, 분류/댓글/좋아요까지 처리합니다.
+Claude Code 플러그인 스킬 — BlogN 블로그/포스트 관리 REST API(`https://back.softn.kr/api/v1/blog/...`)를 자연어로 호출합니다. 포스트 CRUD, 본문 블록(Editor.js JSON) 일괄 저장 및 블록 단위 증분 편집(추가/수정/삭제/이동 + 동기화), 이미지·첨부 업로드, YouTube/Vimeo 임베드, Markdown 양방향 변환, 분류/라벨/댓글/좋아요까지 처리합니다.
 
 - **배포**: `softn-tools` 마켓플레이스의 `blog-editor` 플러그인 ([softn-claude-plugins](https://github.com/DoYeong-Seo/softn-claude-plugins))
 - **인증**: Personal Access Token(PAT, `softn_pat_` 접두사) — `blog` 스코프 필요 (파일 업로드 시 `file` 추가)
