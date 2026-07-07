@@ -94,18 +94,39 @@ export BLOGN_DATABASE="<project.json mysql.database>"
 
 > 형식·예시 필드는 플러그인의 [`project.example.json`](project.example.json) 참고. 이 파일은 DB 접속 정보를 담으므로(비밀번호 제외) 커밋 대상에서 제외하거나 `.gitignore`에 추가하도록 안내할 수 있다.
 
-### 3) 스크립트 실행
+### 3) BasicVO · CustomAbstractDAO 위치 확인 (생성 직전, 매번)
 
-프로젝트 루트(cwd)에서 실행한다 — 산출물이 해당 프로젝트 `temp/`에 생성된다.
+생성 코드의 `EVO` 는 `BasicVO` 를, `BasicDAO` 는 `CustomAbstractDAO` 를 상속한다. **이 두 클래스의 패키지는 프로젝트마다 다르므로**, 스크립트를 돌리기 전에 **실제 프로젝트에서 위치를 찾아 FQCN(정규화된 전체 클래스명)으로 넘긴다.** 못 찾으면 스크립트가 관례/베이스 패키지로 자동 유추하지만, 컴파일 오류를 막기 위해 가능한 한 실제 위치를 확인해 명시한다.
+
+프로젝트 소스 루트(예: `src/main/java`)에서 클래스 선언을 검색한다:
 
 ```bash
-# 단일 테이블
+# BasicVO 위치 — 클래스 선언 파일에서 package 선언을 읽어 FQCN 을 만든다
+find . -path '*/src/main/java/*' -name 'BasicVO.java'
+# CustomAbstractDAO 위치
+find . -path '*/src/main/java/*' -name 'CustomAbstractDAO.java'
+```
+
+- 찾은 `.java` 파일의 `package ...;` 선언 + 클래스명으로 FQCN 을 구성한다. 예: `package com.softn.blogn.cmmn.vo;` + `BasicVO` → `com.softn.blogn.cmmn.vo.BasicVO`.
+- **여러 개**가 나오면 생성 대상 테이블의 베이스 패키지(`basePackage`) 하위에 있는 것을 고른다. 애매하면 사용자에게 확인한다.
+- **하나도 못 찾으면** FQCN 인자를 생략한다 → 스크립트가 `--package`(BasicVO 는 감사 관례) 기반으로 자동 유추한다.
+
+### 4) 스크립트 실행
+
+프로젝트 루트(cwd)에서 실행한다 — 산출물이 해당 프로젝트 `temp/`에 생성된다. 앞 단계에서 확인한 위치를 `--basic-vo-fqcn` / `--custom-abstract-dao-fqcn` 로 넘긴다.
+
+```bash
+# 단일 테이블 (BasicVO·CustomAbstractDAO 위치를 프로젝트에서 확인해 전달)
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/object-generate/generate_code.py" quz_show \
-  --package "<basePackage>"
+  --package "<basePackage>" \
+  --basic-vo-fqcn "<BasicVO FQCN>" \
+  --custom-abstract-dao-fqcn "<CustomAbstractDAO FQCN>"
 
 # 여러 테이블 (공백 구분)
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/object-generate/generate_code.py" quz_show quz_quiz pbd_board \
-  --package "<basePackage>"
+  --package "<basePackage>" \
+  --basic-vo-fqcn "<BasicVO FQCN>" \
+  --custom-abstract-dao-fqcn "<CustomAbstractDAO FQCN>"
 
 # 커스텀 출력 디렉토리
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/object-generate/generate_code.py" quz_show \
@@ -116,8 +137,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/object-generate/generate_code.py" quz_show
   --package "<basePackage>" --no-clean
 ```
 > `--package`를 생략하면 `BLOGN_BASE_PACKAGE` 환경변수, 그것도 없으면 `com.softn.blogn` 기본값이 쓰인다. 설정 파일을 쓰는 경우 항상 `--package`로 명시하는 것을 권장한다.
+> `--basic-vo-fqcn` / `--custom-abstract-dao-fqcn` 를 생략하면 각각 감사 관례(`cmmn.vo`/`cmmn.service`)와 `{base}.cmmn.dao.CustomAbstractDAO` 로 자동 유추한다. 프로젝트에서 실제 위치를 확인했다면 항상 명시하는 것을 권장한다.
 
-### 4) 결과 확인 및 리포트
+### 5) 결과 확인 및 리포트
 
 실행 후 성공 여부 / 생성 파일 수 / 출력 위치 / 오류를 사용자에게 보고한다.
 
@@ -166,7 +188,9 @@ temp/
 | "temp가 아니라 다른 곳에" | `--output-dir <path>` |
 | 여러 테이블 나열 | 공백으로 구분 |
 | "기존 파일 보존" / "비우지 말고" | `--no-clean` |
-| "BasicVO 위치가 달라" / 자동 감지 무시하고 강제 지정 | `--basic-vo-package <pkg>` (예: `cmmn.service`) |
+| "BasicVO 하위 패키지만 다름" / 관례 감지만 무시 | `--basic-vo-package <pkg>` (예: `cmmn.service`) |
+| BasicVO 실제 위치를 프로젝트에서 확인해 전달 | `--basic-vo-fqcn <FQCN>` (예: `com.softn.blogn.cmmn.vo.BasicVO`) |
+| CustomAbstractDAO 실제 위치를 프로젝트에서 확인해 전달 | `--custom-abstract-dao-fqcn <FQCN>` (예: `com.softn.blogn.cmmn.dao.CustomAbstractDAO`) |
 
 ## 감사(audit) 필드 / BasicVO 관례
 
@@ -179,7 +203,8 @@ temp/
 
 - 감사 컬럼은 EVO 에서 제외되어 `BasicVO` 상속으로 처리된다. (양쪽 관례 컬럼명이 겹치지 않아 한 DB/여러 테이블이 섞여도 안전)
 - INSERT 시 `*_datetime`·`lock_timestamp` 는 `now()` 로, UPDATE 시 등록(생성) 감사필드(`create_*`/`append_*`)는 SET 에서 제외되고 수정 감사 시각(`modify_datetime`/`update_datetime`)·`lock_timestamp` 는 `now()` 로 채워진다.
-- `BasicVO` 위치가 위 기본값과 다르면 `--basic-vo-package` 로 강제 지정한다.
+- `BasicVO` 위치가 위 기본값과 다르면, 실제 위치를 프로젝트에서 찾아 `--basic-vo-fqcn` 으로 넘긴다(권장, [3) 위치 확인](#3-basicvo--customabstractdao-위치-확인-생성-직전-매번) 참고). 베이스 패키지 하위 패키지만 다른 경우엔 `--basic-vo-package` 로 지정해도 된다.
+- 마찬가지로 `CustomAbstractDAO`(`BasicDAO` 가 상속) 도 프로젝트마다 위치가 다를 수 있어, 실제 위치를 찾아 `--custom-abstract-dao-fqcn` 으로 넘긴다. 미지정 시 `{basePackage}.cmmn.dao.CustomAbstractDAO` 로 유추한다.
 
 ## 오류 처리
 
@@ -187,6 +212,21 @@ temp/
 2. **`mysql.connector` 미설치**: `pip3 install -r "${CLAUDE_PLUGIN_ROOT}/skills/object-generate/requirements.txt"` 안내.
 3. **테이블을 찾을 수 없음**: 테이블명 철자(소문자), `{module}_{entity}` 형식 확인.
 4. **권한 오류**: 출력 디렉토리 쓰기 권한 확인.
+
+## SQL → Java 타입 매핑
+
+| SQL 타입 | Java 타입 |
+|----------|-----------|
+| `VARCHAR`, `CHAR`, `TEXT`, `LONGTEXT`, `MEDIUMTEXT` | `String` |
+| `INT`, `TINYINT`, `SMALLINT`, `NUMERIC` | `Integer` |
+| `BIGINT` | `Long` |
+| `DATETIME`, `TIMESTAMP`, `DATE` | `Date` |
+| `DECIMAL`, `DOUBLE` | `Double` |
+| `FLOAT` | `Float` |
+| `BIT` | `Boolean` |
+
+- **`BIGINT` 은 `Long`** 으로 선언된다(Integer 아님). 따라서 PK 가 `BIGINT` 인 테이블은 신규 키를 반환하는 `GeneratedDAO.findKey()` 도 `Long` 을 반환하고, 해당 SQL 매핑의 `resultType` 도 `Long` 이 된다. PK 가 `INT` 계열이면 종전처럼 `Integer`.
+- `count()`(레코드 수)와 `create/modify/remove`(영향 행 수)는 컬럼 타입과 무관한 카운트이므로 항상 `Integer`/`int` 를 유지한다.
 
 ## 주의사항
 
@@ -198,5 +238,5 @@ temp/
 ## 참고
 
 - [README.md](README.md) — 설치/설정/트러블슈팅
-- [generate_code.py](generate_code.py) — 코드 생성 스크립트 (`--package`로 베이스 패키지 지정)
+- [generate_code.py](generate_code.py) — 코드 생성 스크립트 (`--package` 베이스 패키지, `--basic-vo-fqcn`/`--custom-abstract-dao-fqcn` 상속 클래스 위치 지정)
 - [requirements.txt](requirements.txt) — 의존성 (`mysql-connector-python`)

@@ -76,11 +76,20 @@ BASIC_VO_PACKAGE_BY_CONVENTION = {
 # --basic-vo-package 로 지정 시 관례 기반 기본값을 덮어쓴다 (미지정이면 None → 자동 감지)
 BASIC_VO_PACKAGE_OVERRIDE = None
 
+# CustomAbstractDAO / BasicVO 의 import 위치는 프로젝트마다 다를 수 있다.
+# 스킬이 실제 프로젝트에서 두 클래스의 위치를 찾아 FQCN(정규화된 전체 클래스명)으로 넘긴다.
+# 지정 시 다른 유추(관례/베이스 패키지 조합)보다 최우선으로 사용한다.
+#  · BASIC_VO_FQCN_OVERRIDE           예: com.softn.blogn.cmmn.vo.BasicVO
+#  · CUSTOM_ABSTRACT_DAO_FQCN_OVERRIDE 예: com.softn.blogn.cmmn.dao.CustomAbstractDAO
+# 미지정(None)이면 기존 동작(베이스 패키지 + 관례/고정 하위 패키지)으로 자동 유추한다.
+BASIC_VO_FQCN_OVERRIDE = None
+CUSTOM_ABSTRACT_DAO_FQCN_OVERRIDE = None
+
 # SQL 타입 -> Java 타입 매핑
 TYPE_MAPPING = {
     'VARCHAR': 'String', 'CHAR': 'String', 'TEXT': 'String',
     'LONGTEXT': 'String', 'MEDIUMTEXT': 'String',
-    'INT': 'Integer', 'BIGINT': 'Integer', 'TINYINT': 'Integer',
+    'INT': 'Integer', 'BIGINT': 'Long', 'TINYINT': 'Integer',
     'SMALLINT': 'Integer', 'NUMERIC': 'Integer',
     'DATETIME': 'Date', 'TIMESTAMP': 'Date', 'DATE': 'Date',
     'DECIMAL': 'Double', 'DOUBLE': 'Double', 'FLOAT': 'Float',
@@ -190,6 +199,20 @@ def map_sql_type_to_java(sql_type: str) -> str:
     return TYPE_MAPPING.get(sql_type.upper(), 'String')
 
 
+def get_key_return_type(columns: List[Dict]) -> str:
+    """신규 키값을 반환하는 메서드(findKey)의 반환 타입을 결정합니다.
+
+    PK 컬럼(없으면 첫 컬럼)의 Java 타입이 Long(BIGINT)이면 Long, 그 외에는 Integer 를 쓴다.
+    (findKey 는 숫자 키를 반환하는 템플릿이므로 Long/Integer 로만 좁힌다.)
+    """
+    pks = [col for col in columns if col['COLUMN_KEY'] == 'PRI']
+    if not pks and columns:
+        pks = columns[:1]
+    if pks and map_sql_type_to_java(pks[0]['DATA_TYPE']) == 'Long':
+        return 'Long'
+    return 'Integer'
+
+
 def detect_audit_convention(columns: List[Dict]) -> str:
     """테이블 컬럼으로 감사 필드 명명 관례를 감지합니다.
 
@@ -211,6 +234,39 @@ def get_basic_vo_package(columns: List[Dict]) -> str:
         return BASIC_VO_PACKAGE_OVERRIDE
     convention = detect_audit_convention(columns)
     return BASIC_VO_PACKAGE_BY_CONVENTION[convention]
+
+
+def split_fqcn(fqcn: str) -> Tuple[str, str]:
+    """FQCN(정규화된 전체 클래스명)을 (import 경로, 단순 클래스명)으로 분리한다.
+
+    예: 'com.softn.blogn.cmmn.vo.BasicVO' → ('com.softn.blogn.cmmn.vo.BasicVO', 'BasicVO')
+    """
+    fqcn = fqcn.strip()
+    simple_name = fqcn.rsplit('.', 1)[-1]
+    return fqcn, simple_name
+
+
+def get_basic_vo_import_and_class(columns: List[Dict]) -> Tuple[str, str]:
+    """EVO 가 상속할 BasicVO 의 (import FQCN, 클래스명)을 반환한다.
+
+    우선순위: --basic-vo-fqcn(프로젝트에서 확인한 실제 위치)
+              > (--basic-vo-package 또는 관례 자동 감지) 로 조합한 기본값.
+    """
+    if BASIC_VO_FQCN_OVERRIDE:
+        return split_fqcn(BASIC_VO_FQCN_OVERRIDE)
+    package = get_basic_vo_package(columns)
+    return f"{BASE_PACKAGE}.{package}.BasicVO", "BasicVO"
+
+
+def get_custom_abstract_dao_import_and_class() -> Tuple[str, str]:
+    """BasicDAO 가 상속할 CustomAbstractDAO 의 (import FQCN, 클래스명)을 반환한다.
+
+    우선순위: --custom-abstract-dao-fqcn(프로젝트에서 확인한 실제 위치)
+              > 기본값({base}.cmmn.dao.CustomAbstractDAO).
+    """
+    if CUSTOM_ABSTRACT_DAO_FQCN_OVERRIDE:
+        return split_fqcn(CUSTOM_ABSTRACT_DAO_FQCN_OVERRIDE)
+    return f"{BASE_PACKAGE}.cmmn.dao.CustomAbstractDAO", "CustomAbstractDAO"
 
 
 def generate_serial_version_uid() -> str:
@@ -262,12 +318,14 @@ def generate_evo_class(module: str, submodule: str, entity_name: str, table_name
     if needs_date_import:
         code += "\nimport java.util.Date;\n"
 
-    # 감사 관례에 따라 BasicVO 패키지를 결정한다 (create→cmmn.vo, append→cmmn.service)
-    basic_vo_package = get_basic_vo_package(columns)
+    # BasicVO 의 위치를 결정한다.
+    #  · --basic-vo-fqcn 으로 프로젝트에서 확인한 실제 위치가 넘어오면 그것을 그대로 쓰고,
+    #  · 없으면 감사 관례로 유추한다 (create→cmmn.vo, append→cmmn.service).
+    basic_vo_import, basic_vo_class = get_basic_vo_import_and_class(columns)
 
     code += f"""
-import {BASE_PACKAGE}.{basic_vo_package}.BasicVO;
-    
+import {basic_vo_import};
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -278,7 +336,7 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-public class {class_name} extends BasicVO {{
+public class {class_name} extends {basic_vo_class} {{
 
     private static final long serialVersionUID = {generate_serial_version_uid()};
 """
@@ -586,10 +644,15 @@ def generate_basic_dao(module: str, submodule: str, table_name: str, table_comme
     vo_name = get_gen_table_name(table_name) + "VO"
     param_vo_name = snake_to_camel(table_name, False) + "VO"
 
+    # CustomAbstractDAO 의 위치를 결정한다.
+    #  · --custom-abstract-dao-fqcn 으로 프로젝트에서 확인한 실제 위치가 넘어오면 그것을 그대로 쓰고,
+    #  · 없으면 기본값({base}.cmmn.dao.CustomAbstractDAO)을 쓴다.
+    custom_dao_import, custom_dao_class = get_custom_abstract_dao_import_and_class()
+
     code = f"""package {package};
 
 import {BASE_PACKAGE}.cmmn.annotation.SetUserSession;
-import {BASE_PACKAGE}.cmmn.dao.CustomAbstractDAO;
+import {custom_dao_import};
 import {BASE_PACKAGE}.{module}.{submodule}.service.{vo_name};
 
 /**
@@ -597,7 +660,7 @@ import {BASE_PACKAGE}.{module}.{submodule}.service.{vo_name};
  *
  * @author SoftN Develop Center
  */
-public class {dao_name} extends CustomAbstractDAO {{
+public class {dao_name} extends {custom_dao_class} {{
 
     /**
      * {table_comment}에서 Primary Key로 정보를 조회한다.
@@ -648,7 +711,7 @@ public class {dao_name} extends CustomAbstractDAO {{
     return code
 
 
-def generate_generated_dao(module: str, submodule: str, table_name: str, table_comment: str) -> str:
+def generate_generated_dao(module: str, submodule: str, table_name: str, table_comment: str, columns: List[Dict]) -> str:
     """GeneratedDAO 클래스 코드를 생성합니다."""
 
     package = f"{BASE_PACKAGE}.{module}.{submodule}.service.impl"
@@ -657,6 +720,8 @@ def generate_generated_dao(module: str, submodule: str, table_name: str, table_c
     vo_name = get_gen_table_name(table_name) + "VO"
     param_vo_name = snake_to_camel(table_name, False) + "VO"
     dao_bean_name = snake_to_camel(table_name, False) + "DAO"
+    # findKey 는 신규 키값을 반환하므로 PK 타입을 따른다 (BIGINT PK → Long)
+    key_return_type = get_key_return_type(columns)
 
     code = f"""package {package};
 
@@ -711,11 +776,11 @@ public class {dao_name} extends {basic_dao_name} {{
      * {table_comment}의 신규 키값을 조회한다.
      *
      * @param {param_vo_name}
-     * @return 직접 입력
+     * @return {key_return_type}
      * @throws Exception
      */
-    public int findKey({vo_name} {param_vo_name}) throws Exception {{
-        return (Integer)select("{dao_name}.findKey", {param_vo_name});
+    public {key_return_type} findKey({vo_name} {param_vo_name}) throws Exception {{
+        return ({key_return_type})select("{dao_name}.findKey", {param_vo_name});
     }}
 
 }}
@@ -891,6 +956,8 @@ def generate_generated_dao_sql(module: str, submodule: str, table_name: str, tab
 
     # Primary key 찾기 (WHERE 절용)
     primary_keys = [col for col in columns if col['COLUMN_KEY'] == 'PRI']
+    # findKey resultType — PK 타입을 따른다 (BIGINT PK → Long)
+    key_return_type = get_key_return_type(columns)
 
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
@@ -994,7 +1061,7 @@ def generate_generated_dao_sql(module: str, submodule: str, table_name: str, tab
         <include refid=\"""" + dao_name + """.listWhereQuery"/>
     </select>
 
-    <select id=\"""" + dao_name + """.findKey" parameterType=\"""" + full_vo_type + """\" resultType="Integer">
+    <select id=\"""" + dao_name + """.findKey" parameterType=\"""" + full_vo_type + """\" resultType=\"""" + key_return_type + """\">
         /*
          SQL ID : """ + dao_name + """.findKey
          설  명 : """ + table_comment + """의 키 검색
@@ -1076,8 +1143,10 @@ def generate_all_files(table_names: List[str], output_dir: str):
         module, submodule, entity_name = extract_module_and_entity(table_name)
         print(f"  ✓ 모듈: {module}.{submodule}, 엔티티: {entity_name}")
         print(f"  ✓ 테이블 설명: {table_comment}")
-        print(f"  ✓ 감사 관례: {detect_audit_convention(columns)} "
-              f"(BasicVO → {BASE_PACKAGE}.{get_basic_vo_package(columns)}.BasicVO)")
+        basic_vo_import, _ = get_basic_vo_import_and_class(columns)
+        custom_dao_import, _ = get_custom_abstract_dao_import_and_class()
+        print(f"  ✓ 감사 관례: {detect_audit_convention(columns)} (BasicVO → {basic_vo_import})")
+        print(f"  ✓ CustomAbstractDAO → {custom_dao_import}")
 
         # 출력 디렉토리 설정
         java_service_dir = os.path.join(output_dir, "java", "com", "softn", "blogn", module, submodule, "service")
@@ -1101,7 +1170,7 @@ def generate_all_files(table_names: List[str], output_dir: str):
         basic_dao_code = generate_basic_dao(module, submodule, table_name, table_comment)
         save_file(os.path.join(java_impl_dir, f"{get_gen_table_name(table_name)}BasicDAO.java"), basic_dao_code)
 
-        generated_dao_code = generate_generated_dao(module, submodule, table_name, table_comment)
+        generated_dao_code = generate_generated_dao(module, submodule, table_name, table_comment, columns)
         save_file(os.path.join(java_impl_dir, f"{get_gen_table_name(table_name)}GeneratedDAO.java"), generated_dao_code)
 
         # SQL 파일 생성
@@ -1138,6 +1207,7 @@ def generate_all_files(table_names: List[str], output_dir: str):
 def main():
     """메인 함수"""
     global BASE_PACKAGE, BASIC_VO_PACKAGE_OVERRIDE
+    global BASIC_VO_FQCN_OVERRIDE, CUSTOM_ABSTRACT_DAO_FQCN_OVERRIDE
     parser = argparse.ArgumentParser(description='Blogn Basic Object Generator')
     parser.add_argument('tables', nargs='+', help='테이블명 (1개 이상)')
     parser.add_argument('--output-dir', default='temp', help='출력 디렉토리 (기본: temp)')
@@ -1148,6 +1218,12 @@ def main():
     parser.add_argument('--basic-vo-package', default=None,
                         help='BasicVO 패키지(베이스 패키지 이하). 미지정 시 감사 관례로 자동 감지 '
                              '(create/modify→cmmn.vo, append/update→cmmn.service)')
+    parser.add_argument('--basic-vo-fqcn', default=None,
+                        help='BasicVO 의 정규화된 전체 클래스명(FQCN). 프로젝트에서 확인한 실제 위치를 넘긴다. '
+                             '예: com.softn.blogn.cmmn.vo.BasicVO. 지정 시 --basic-vo-package/관례 감지보다 우선.')
+    parser.add_argument('--custom-abstract-dao-fqcn', default=None,
+                        help='CustomAbstractDAO 의 정규화된 전체 클래스명(FQCN). 프로젝트에서 확인한 실제 위치를 넘긴다. '
+                             '예: com.softn.blogn.cmmn.dao.CustomAbstractDAO. 미지정 시 {base}.cmmn.dao.CustomAbstractDAO.')
 
     args = parser.parse_args()
 
@@ -1158,6 +1234,12 @@ def main():
     # BasicVO 패키지 오버라이드 (지정 시 관례 자동 감지보다 우선)
     if args.basic_vo_package:
         BASIC_VO_PACKAGE_OVERRIDE = args.basic_vo_package
+
+    # CustomAbstractDAO / BasicVO 의 실제 위치(FQCN) 오버라이드 — 프로젝트에서 확인한 값
+    if args.basic_vo_fqcn:
+        BASIC_VO_FQCN_OVERRIDE = args.basic_vo_fqcn
+    if args.custom_abstract_dao_fqcn:
+        CUSTOM_ABSTRACT_DAO_FQCN_OVERRIDE = args.custom_abstract_dao_fqcn
 
     # 출력 디렉토리 절대 경로로 변환
     output_dir = os.path.abspath(args.output_dir)
