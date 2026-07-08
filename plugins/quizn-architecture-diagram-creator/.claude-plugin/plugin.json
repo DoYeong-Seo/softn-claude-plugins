@@ -1,0 +1,10 @@
+{
+  "name": "quizn-architecture-diagram-creator",
+  "version": "1.0.0",
+  "description": "QuizN(SoftN) 브랜드 토큰을 입힌 자기완결형 HTML 아키텍처 다이어그램을 생성하는 스킬. 개요·핵심지표 / 서비스 구조(SHOW·BOARD·VIDEO·CLASS) / 데이터 플로·파이프라인 / 시스템 아키텍처 계층의 4개 섹션(고정)으로 구성하고, SVG 부품을 조립해 시스템 아키텍처·하이레벨 개요·데이터 플로를 시각화한다. data-theme 한 줄로 서비스 테마를 전환하며 외부 의존성 없이 열린다.",
+  "author": {
+    "name": "이명진",
+    "email": "to.myungjin@softn.kr"
+  },
+  "keywords": ["quizn", "softn", "architecture", "diagram", "html", "svg", "design-system"]
+}

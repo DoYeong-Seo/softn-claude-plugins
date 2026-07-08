@@ -1,0 +1,319 @@
+/* ============================================================
+   QuizN Design System — Colors & Typography
+   ------------------------------------------------------------
+   Source: quizn.show + style_show.css / style_board.css /
+   style_class.css (and a derived style_video.css).
+   4 services share an identical 4-token shape. Switch theme
+   with body[data-theme="show|board|class|video"].
+   ============================================================ */
+
+/* ---- Webfonts (Google) ----
+   English / display: Montserrat (300/400/500/600/700/800)
+   Korean body: HGGGothicssi (local brand font, see @font-face below)
+*/
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+/* NOTE (QuizN-planning-flow): 아이콘 폰트(fontello)는 흐름도/기획문서 산출에 불필요하여
+   이 번들에서는 제외했습니다. 아이콘이 필요하면 quizn-design-system의
+   assets/fonts/fontello/ 를 fonts/fontello/ 로 복사한 뒤 아래 줄의 주석을 해제하세요. */
+/* @import url('./fonts/fontello/css/fontello.css'); */
+
+/* ---- Brand Korean font: HGGGothicssi (한겨레결체) ----
+   6 weights shipped: 00g/20g/40g/60g/80g/99g → 100/300/400/600/700/900
+*/
+@font-face {
+  font-family: 'HGGGothicssi';
+  src: url('./fonts/HGGGothicssi_00g.ttf') format('truetype');
+  font-weight: 100; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'HGGGothicssi';
+  src: url('./fonts/HGGGothicssi_20g.ttf') format('truetype');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'HGGGothicssi';
+  src: url('./fonts/HGGGothicssi_40g.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'HGGGothicssi';
+  src: url('./fonts/HGGGothicssi_60g.ttf') format('truetype');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'HGGGothicssi';
+  src: url('./fonts/HGGGothicssi_80g.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'HGGGothicssi';
+  src: url('./fonts/HGGGothicssi_99g.ttf') format('truetype');
+  font-weight: 900; font-style: normal; font-display: swap;
+}
+
+:root {
+  /* ============== BRAND COLORS — 4 services (SHOW · BOARD · VIDEO · CLASS) ============== */
+  /* SHOW — signature orange (brand main) */
+  --brand-show:        #ff6800;
+  --brand-show-sub:    #ff8533;
+  --brand-show-deep:   #db5800;
+  --brand-show-soft:   #ffa366;
+  --brand-show-light:  #fff2e8;
+
+  /* BOARD — mint */
+  --brand-board:       #02d7c5;
+  --brand-board-sub:   #00C1B0;
+  --brand-board-deep:  #007E73;
+  --brand-board-soft:  #6fe9dd;
+  --brand-board-light: #f3fffe;
+
+  /* VIDEO — purple */
+  --brand-video:       #9359E1;
+  --brand-video-sub:   #ac8ef8;
+  --brand-video-deep:  #7249b7;
+  --brand-video-soft:  #c5aff8;
+  --brand-video-light: #f5f0ff;
+
+  /* CLASS — blue */
+  --brand-class:       #44A2FF;
+  --brand-class-sub:   #4f9fee;
+  --brand-class-deep:  #3790e9;
+  --brand-class-soft:  #8cc4ff;
+  --brand-class-light: #e7f3ff;
+
+  /* ---- Legacy aliases (kept for backward-compat) ---- */
+  --brand-purple-deep:    #572973;
+  --brand-purple-vivid:   #9359e1;
+  --brand-purple-soft:    #ac8ef8;
+  --brand-purple-sub:     #7249b7;
+  --brand-purple-hi:      #7b41c9;
+
+  --brand-orange:         #ff6800;
+  --brand-orange-tab:     #ff7d24;
+  --brand-orange-deep:    #db5800;
+  --brand-orange-soft:    #ffa366;
+
+  /* ============== PLAYFUL 4-COLOR PALETTE ============== */
+  --c-sky:      #8ECCF8;
+  --c-yellow:   #ffc91b;
+  --c-mint:     #02d7c5;
+  --c-lilac:    #ac8ef8;
+
+  /* ============== TAG / CATEGORY ============== */
+  --tag-teal:   #0c7264;
+  --tag-orange: #da7127;
+  --tag-ink:    #191919;
+  --tag-purple: #7249b7;
+  --tag-red:    #ba202b;
+  --tag-navy:   #1e3c73;
+  --tag-cyan:   #00aeff;
+  --tag-amber:  #f9b219;
+  --tag-pink:   #ec2fa6;
+
+  /* ============== NEUTRALS ============== */
+  --bg:           #ffffff;
+  --bg-soft:      #f9f9f9;
+  --bg-soft-2:    #f7f7f7;
+  --bg-warm:      #faf5eb;
+  --bg-warm-2:    #f4f4f2;
+  --border:       #e0e0e0;
+  --border-2:     #e6e6e6;
+  --divider:      #d0d0d0;
+  --fg:           #282828;     /* body text */
+  --fg-sub:       #555;        /* secondary */
+  --fg-mute:      #777;        /* muted */
+  --footer-bg:    #3c3c3c;
+  --footer-bg-2:  #515151;
+
+  /* ============== SEMANTIC FG/BG ============== */
+  --fg1:    #282828;            /* primary text */
+  --fg2:    #555;               /* secondary */
+  --fg3:    #777;               /* muted */
+  --fg-on-color: #ffffff;       /* on tinted bgs */
+
+  /* ============== THEME TOKENS — default = SHOW ==============
+     The 4 tokens every service component references.
+  */
+  --main-color:       #ff6800;
+  --sub-color:        #ff8533;
+  --btn-hover-color:  #ff8533;
+  --bg-light-color:   #fff2e8;
+  --theme-deep:       #db5800;
+  --theme-name:       'SHOW';
+
+  /* ============== TYPOGRAPHY ============== */
+  --font-kr:     'HGGGothicssi', 'Noto Sans KR', 'NanumGothic', 'Open Sans', sans-serif;
+  --font-en:     'Montserrat', 'Open Sans', sans-serif;
+  --font-jp:     'M PLUS Rounded 1c', 'Noto Sans JP', Meiryo, sans-serif;
+  --font-mono:   'SF Mono', Consolas, Menlo, monospace;
+
+  /* Base type */
+  --fs-body:        16px;
+  --fw-body:        300;
+  --lh-body:        1.6;
+
+  /* Type scale (measured from quizn.show) */
+  --fs-hero-xl:     79px;   /* Noto KR 300 */
+  --fs-hero:        70px;   /* Montserrat 700 */
+  --fs-hero-2:      60px;   /* Montserrat 700 */
+  --fs-display:     56px;   /* 500 */
+  --fs-h1:          42px;   /* 300 */
+  --fs-h2:          38px;
+  --fs-h3:          24px;   /* 400 */
+  --fs-h4:          21px;   /* 500 */
+  --fs-subhead:     19px;   /* 600 */
+  --fs-body-lg:     18px;   /* 600 */
+  --fs-body-md:     16px;   /* 300 */
+  --fs-caption:     14px;
+  --fs-tag:         12px;   /* 600 */
+  --fs-micro:       11px;   /* uppercase EN labels */
+
+  /* Weights */
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+  --fw-black:    800;
+
+  /* ============== RADIUS ============== */
+  --r-pill:  50px;     /* CTA buttons */
+  --r-lg:    28px;     /* large panels */
+  --r-md:    8px;      /* cards / boxes */
+  --r-sm:    4px;      /* inputs */
+  --r-tab:   8px 8px 0 0;
+  --r-circle: 50%;
+
+  /* ============== SHADOWS ============== */
+  --shadow-card:    0 4px 16px rgba(0,0,0,0.08);
+  --shadow-pop:     0 8px 28px -12px rgba(0,0,0,0.15);
+  --shadow-hover:   0 10px 24px -8px var(--main-color);
+  --shadow-modal:   0 16px 40px rgba(0,0,0,0.18);
+  --shadow-toast:   0 12px 32px rgba(0,0,0,0.25);
+  --shadow-inset:   inset 0 0 0 1px var(--border);
+
+  /* ============== SPACING ============== */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   24px;
+  --space-6:   32px;
+  --space-7:   48px;
+  --space-8:   64px;
+  --space-9:   96px;
+
+  /* ============== MOTION ============== */
+  --t-fast:    0.18s ease;
+  --t-base:    0.25s ease;
+  --t-theme:   0.4s cubic-bezier(.4,0,.2,1);
+
+  /* ============== SIGNATURES ============== */
+  --gradient-warm:    linear-gradient(to right, #ff8533 -1%, #ff6800 102%);
+  --gradient-purple:  linear-gradient(135deg, #7249b7 0%, #9359e1 100%);
+  --gradient-orange:  linear-gradient(135deg, #db5800 0%, #ff8533 100%);
+  --underline-brand:  2px solid var(--brand-orange);
+}
+
+/* ============== THEME DEFINITIONS ============== */
+body[data-theme="show"]  {
+  --main-color: #ff6800; --sub-color: #ff8533;
+  --btn-hover-color: #ff8533; --bg-light-color: #fff2e8;
+  --theme-deep: #db5800; --theme-name: 'SHOW';
+}
+body[data-theme="board"] {
+  --main-color: #02d7c5; --sub-color: #007E73;
+  --btn-hover-color: #00C1B0; --bg-light-color: #f3fffe;
+  --theme-deep: #007E73; --theme-name: 'BOARD';
+}
+body[data-theme="class"] {
+  --main-color: #44a2ff; --sub-color: #3790e9;
+  --btn-hover-color: #4f9fee; --bg-light-color: #e7f3ff;
+  --theme-deep: #3790e9; --theme-name: 'CLASS';
+}
+body[data-theme="video"] {
+  --main-color: #9359e1; --sub-color: #7b41c9;
+  --btn-hover-color: #ac8ef8; --bg-light-color: #f5f0ff;
+  --theme-deep: #7249b7; --theme-name: 'VIDEO';
+}
+
+/* ============== SEMANTIC TYPE STYLES ============== */
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  font-family: var(--font-kr);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-body);
+  color: var(--fg);
+  background: var(--bg);
+}
+
+.h-hero {
+  font-family: var(--font-en);
+  font-size: var(--fs-hero);
+  font-weight: var(--fw-black);
+  line-height: 1;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+}
+h1, .h1 {
+  font-family: var(--font-kr);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-light);
+  line-height: 1.2;
+  color: var(--fg);
+}
+h2, .h2 {
+  font-family: var(--font-kr);
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-light);
+  line-height: 1.25;
+}
+h3, .h3 {
+  font-family: var(--font-kr);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-regular);
+  line-height: 1.3;
+}
+h4, .h4 {
+  font-family: var(--font-kr);
+  font-size: var(--fs-h4);
+  font-weight: var(--fw-medium);
+}
+.subhead {
+  font-size: var(--fs-subhead);
+  font-weight: var(--fw-semibold);
+}
+p, .body {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-body);
+  color: var(--fg);
+}
+.caption {
+  font-size: var(--fs-caption);
+  color: var(--fg-sub);
+}
+.eyebrow {
+  font-family: var(--font-en);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-bold);
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--main-color);
+}
+.tag-text {
+  font-family: var(--font-en);
+  font-size: var(--fs-tag);
+  font-weight: var(--fw-bold);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+code, .mono {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+}
+.num {
+  font-family: 'Spoqa Han Sans Neo', var(--font-en);
+  font-feature-settings: 'tnum';
+}

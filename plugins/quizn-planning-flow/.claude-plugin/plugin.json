@@ -1,0 +1,10 @@
+{
+  "name": "quizn-planning-flow",
+  "version": "1.0.0",
+  "description": "SoftN/QuizN 서비스(SHOW·BOARD·VIDEO·CLASS) 기획 전반을 수행하는 스킬. 증거 기반 요구 정리 → SVG 흐름도 작성 → 논리 검증·오류 리포팅·대안 제시 → 요청자 질의·수용 → 버전 확정의 강제 루프를 따른다. quizn-design-system 토큰 + 다크/라이트 모드, FHD(1920×1080)~4K(3840×2160) PNG/PDF 내보내기, 프로젝트 단위 폴더·버전 필수 표기를 지원한다.",
+  "author": {
+    "name": "이명진",
+    "email": "to.myungjin@softn.kr"
+  },
+  "keywords": ["quizn", "softn", "planning", "prd", "flowchart", "svg", "design-system"]
+}

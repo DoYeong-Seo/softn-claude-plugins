@@ -1,0 +1,128 @@
+<!-- ============================================================
+     QuizN ARCHITECTURE SVG COMPONENTS
+     의미 기반 색 규칙(QuizN 토큰 참조):
+       데이터/입력 = var(--brand-class) blue
+       처리/변환   = var(--brand-show)  orange
+       AI/분석     = var(--brand-video) purple
+       출력/서비스 = var(--brand-board) mint
+       커넥터      = var(--fg2) #555
+     박스를 복사해 x/y/라벨만 바꿔 조립한다. 좌표는 viewBox 기준.
+     ============================================================ -->
+
+<!-- ===== 화살표 마커 정의 (svg 안 한 번만) ===== -->
+<defs>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+    <polygon points="0 0, 10 3, 0 6" fill="var(--fg2)"/>
+  </marker>
+  <marker id="arrow-show" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+    <polygon points="0 0, 10 3, 0 6" fill="#ff6800"/>
+  </marker>
+  <marker id="arrow-board" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+    <polygon points="0 0, 10 3, 0 6" fill="#02d7c5"/>
+  </marker>
+</defs>
+
+<!-- ===== 데이터 소스 박스 (blue) ===== -->
+<g class="box-data">
+  <rect x="40" y="100" width="170" height="90" rx="8"
+        fill="var(--brand-class-light)" stroke="var(--brand-class)" stroke-width="2.5"/>
+  <text x="125" y="135" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="15" font-weight="700" fill="var(--brand-class-deep)">데이터 소스</text>
+  <text x="125" y="160" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="12" fill="var(--fg2)">유형 · 설명</text>
+</g>
+
+<!-- ===== 처리 엔진 박스 (orange) ===== -->
+<g class="box-process">
+  <rect x="315" y="100" width="170" height="90" rx="8"
+        fill="var(--brand-show-light)" stroke="var(--brand-show)" stroke-width="2.5"/>
+  <text x="400" y="135" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="15" font-weight="700" fill="var(--brand-show-deep)">처리 엔진</text>
+  <text x="400" y="160" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="12" fill="var(--fg2)">변환 · 정제</text>
+</g>
+
+<!-- ===== AI/분석 박스 (purple) — 선택 ===== -->
+<g class="box-ai">
+  <rect x="315" y="10" width="170" height="70" rx="8"
+        fill="var(--brand-video-light)" stroke="var(--brand-video)" stroke-width="2.5"/>
+  <text x="400" y="42" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="14" font-weight="700" fill="var(--brand-video-deep)">AI / 분석</text>
+  <text x="400" y="62" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="11" fill="var(--fg2)">모델 · 추론</text>
+</g>
+
+<!-- ===== 출력/서비스 박스 (mint) ===== -->
+<g class="box-output">
+  <rect x="590" y="100" width="170" height="90" rx="8"
+        fill="var(--brand-board-light)" stroke="var(--brand-board)" stroke-width="2.5"/>
+  <text x="675" y="135" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="15" font-weight="700" fill="var(--brand-board-deep)">출력 / 서비스</text>
+  <text x="675" y="160" text-anchor="middle" font-family="var(--font-kr)"
+        font-size="12" fill="var(--fg2)">대시보드 · API</text>
+</g>
+
+<!-- ===== 커넥터 (좌→우 흐름) ===== -->
+<line x1="210" y1="145" x2="312" y2="145" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="485" y1="145" x2="587" y2="145" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="400" y1="80"  x2="400" y2="98"  stroke="#9359e1" stroke-width="2" marker-end="url(#arrow)"/>
+
+<!-- ============================================================
+     계층형 아키텍처 컴포넌트 (시스템 아키텍처 섹션)
+     계층 띠 1개 = <g> 1개. y를 100씩 내려가며 4계층 쌓기.
+     ============================================================ -->
+
+<!-- ----- 계층 띠: 데이터 계층 (blue) ----- -->
+<g class="layer">
+  <rect x="40" y="20" width="720" height="90" rx="8"
+        fill="var(--brand-class-light)" stroke="var(--brand-class)" stroke-width="2"/>
+  <text x="60" y="50" font-family="var(--font-en)" font-size="13" font-weight="700"
+        fill="var(--brand-class-deep)" letter-spacing="1">DATA LAYER · 데이터 계층</text>
+  <!-- 계층 내부 노드(흰 칩) — 반복 -->
+  <rect x="60"  y="62" width="150" height="34" rx="6" fill="var(--bg)" stroke="var(--brand-class)" stroke-width="1.5"/>
+  <text x="135" y="84" text-anchor="middle" font-family="var(--font-kr)" font-size="12" fill="var(--fg1)">DB / 스토리지</text>
+  <rect x="230" y="62" width="150" height="34" rx="6" fill="var(--bg)" stroke="var(--brand-class)" stroke-width="1.5"/>
+  <text x="305" y="84" text-anchor="middle" font-family="var(--font-kr)" font-size="12" fill="var(--fg1)">메시지 큐</text>
+</g>
+
+<!-- ----- 계층 띠: 처리 계층 (orange) ----- -->
+<g class="layer">
+  <rect x="40" y="130" width="720" height="90" rx="8"
+        fill="var(--brand-show-light)" stroke="var(--brand-show)" stroke-width="2"/>
+  <text x="60" y="160" font-family="var(--font-en)" font-size="13" font-weight="700"
+        fill="var(--brand-show-deep)" letter-spacing="1">PROCESSING LAYER · 처리 계층</text>
+  <rect x="60" y="172" width="150" height="34" rx="6" fill="var(--bg)" stroke="var(--brand-show)" stroke-width="1.5"/>
+  <text x="135" y="194" text-anchor="middle" font-family="var(--font-kr)" font-size="12" fill="var(--fg1)">ETL / 워커</text>
+</g>
+
+<!-- ----- 계층 띠: 서비스 계층 (purple) ----- -->
+<g class="layer">
+  <rect x="40" y="240" width="720" height="90" rx="8"
+        fill="var(--brand-video-light)" stroke="var(--brand-video)" stroke-width="2"/>
+  <text x="60" y="270" font-family="var(--font-en)" font-size="13" font-weight="700"
+        fill="var(--brand-video-deep)" letter-spacing="1">SERVICE LAYER · 서비스 계층</text>
+  <rect x="60" y="282" width="150" height="34" rx="6" fill="var(--bg)" stroke="var(--brand-video)" stroke-width="1.5"/>
+  <text x="135" y="304" text-anchor="middle" font-family="var(--font-kr)" font-size="12" fill="var(--fg1)">API 게이트웨이</text>
+</g>
+
+<!-- ----- 계층 띠: 출력 계층 (mint) ----- -->
+<g class="layer">
+  <rect x="40" y="350" width="720" height="90" rx="8"
+        fill="var(--brand-board-light)" stroke="var(--brand-board)" stroke-width="2"/>
+  <text x="60" y="380" font-family="var(--font-en)" font-size="13" font-weight="700"
+        fill="var(--brand-board-deep)" letter-spacing="1">OUTPUT LAYER · 출력 계층</text>
+  <rect x="60" y="392" width="150" height="34" rx="6" fill="var(--bg)" stroke="var(--brand-board)" stroke-width="1.5"/>
+  <text x="135" y="414" text-anchor="middle" font-family="var(--font-kr)" font-size="12" fill="var(--fg1)">웹 / 모바일</text>
+</g>
+
+<!-- ============================================================
+     파이프라인 스테이지(SVG형, 가로 흐름) — HTML .stage 대신 SVG로 쓸 때
+     ============================================================ -->
+<g class="pipe-stage">
+  <rect x="20" y="20" width="150" height="70" rx="8"
+        fill="var(--bg)" stroke="var(--main-color)" stroke-width="2"/>
+  <circle cx="40" cy="40" r="11" fill="var(--main-color)"/>
+  <text x="40" y="44" text-anchor="middle" font-family="var(--font-en)" font-size="11" font-weight="700" fill="var(--bg)">1</text>
+  <text x="95" y="44" text-anchor="middle" font-family="var(--font-kr)" font-size="13" font-weight="600" fill="var(--fg1)">단계명</text>
+  <text x="95" y="66" text-anchor="middle" font-family="var(--font-kr)" font-size="11" fill="var(--fg2)">설명</text>
+</g>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{흐름도 제목}} · QuizN-planning-flow</title>
+<!--
+  QuizN-planning-flow SVG Flowchart Template
+  - 다크/라이트(data-mode) + 서비스 테마(data-theme) 동시 지원
+  - 내보내기: SVG / PNG(FHD 1920 · QHD 2560 · 4K 3840) / PDF(인쇄)
+  - 버전 배지(#version-badge)는 절대 규칙 6(버전 표기) 충족
+  사용: 같은 폴더(또는 ../assets)에 planning-flow.css, colors_and_type.css, fonts/ 복사.
+-->
+<link rel="stylesheet" href="../theme/planning-flow.css">
+<style>
+  /* 페이지 고유 스타일만. 토큰 재정의 금지. */
+  .qnp-title { font-family: var(--font-kr); font-size: var(--fs-h3); font-weight: var(--fw-semibold);
+    margin: 0; color: var(--ink); }
+  .qnp-sub { font-family: var(--font-en); font-size: var(--fs-micro); color: var(--ink-mute);
+    text-transform: uppercase; letter-spacing:.06em; margin-top:2px; }
+  .legend { display:flex; gap:var(--space-4); flex-wrap:wrap; padding: var(--space-3) var(--space-7);
+    font-family:var(--font-kr); font-size:var(--fs-caption); color:var(--ink-sub); }
+  .legend i { display:inline-block; width:14px; height:14px; border-radius:3px; margin-right:6px;
+    vertical-align:-2px; border:1px solid var(--node-stroke); }
+</style>
+</head>
+<body data-theme="show" data-mode="light">
+
+  <!-- ===== 툴바 ===== -->
+  <div class="qnp-toolbar">
+    <div class="group">
+      <div>
+        <div class="qnp-title">{{흐름도 제목}}</div>
+        <div class="qnp-sub">QuizN Planning Flow</div>
+      </div>
+    </div>
+    <div class="sep"></div>
+
+    <div class="group" role="group" aria-label="Theme">
+      <button class="qnp-btn" onclick="setTheme('show')">SHOW</button>
+      <button class="qnp-btn" onclick="setTheme('board')">BOARD</button>
+      <button class="qnp-btn" onclick="setTheme('video')">VIDEO</button>
+      <button class="qnp-btn" onclick="setTheme('class')">CLASS</button>
+    </div>
+    <div class="sep"></div>
+
+    <div class="group">
+      <button class="qnp-btn" id="modeBtn" aria-pressed="false" onclick="toggleMode()">🌙 Dark</button>
+    </div>
+    <div class="sep"></div>
+
+    <div class="group" role="group" aria-label="Export">
+      <button class="qnp-btn" onclick="downloadSVG()">SVG</button>
+      <button class="qnp-btn" onclick="downloadPNG(1920)">PNG FHD</button>
+      <button class="qnp-btn" onclick="downloadPNG(2560)">PNG QHD</button>
+      <button class="qnp-btn qnp-btn--primary" onclick="downloadPNG(3840)">PNG 4K</button>
+      <button class="qnp-btn" onclick="window.print()">PDF</button>
+    </div>
+  </div>
+
+  <!-- ===== 범례 ===== -->
+  <div class="legend">
+    <span><i style="background:var(--node-terminal)"></i>시작/종료</span>
+    <span><i style="background:var(--node-process)"></i>처리</span>
+    <span><i style="background:var(--node-decision)"></i>결정</span>
+    <span><i style="background:var(--node-io)"></i>입출력</span>
+    <span><i style="background:var(--node-error)"></i>예외/에러</span>
+  </div>
+
+  <!-- ===== 캔버스(SVG) ===== -->
+  <div class="qnp-canvas">
+    <!-- viewBox 16:9 = FHD 1:1 매핑. 세로로 길면 height만 늘릴 것(폭 1920 유지). -->
+    <svg id="flow" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg"
+         font-family="var(--font-kr)">
+      <defs>
+        <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="3" orient="auto">
+          <polygon points="0 0, 10 3, 0 6" fill="var(--edge)"/>
+        </marker>
+      </defs>
+
+      <!-- ====== 예시 흐름 (교체용 샘플) ====== -->
+      <!-- 시작 -->
+      <rect x="810" y="60" width="300" height="90" rx="45"
+            fill="var(--node-terminal)" stroke="none"/>
+      <text x="960" y="113" text-anchor="middle" fill="#fff" font-size="26" font-weight="600">시작 · 앱 실행</text>
+
+      <path d="M960 150 L960 220" stroke="var(--edge)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+
+      <!-- 처리 -->
+      <rect x="810" y="220" width="300" height="90" rx="8"
+            fill="var(--node-process)" stroke="var(--node-stroke)" stroke-width="2"/>
+      <text x="960" y="273" text-anchor="middle" fill="var(--node-fg)" font-size="24">방 코드 입력</text>
+
+      <path d="M960 310 L960 380" stroke="var(--edge)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+
+      <!-- 결정 -->
+      <path d="M960 380 L1110 470 L960 560 L810 470 Z"
+            fill="var(--node-decision)" stroke="var(--node-stroke)" stroke-width="2"/>
+      <text x="960" y="478" text-anchor="middle" fill="#fff" font-size="24" font-weight="600">코드 유효?</text>
+
+      <!-- 분기 Yes -->
+      <path d="M1110 470 L1360 470 L1360 560" stroke="var(--edge)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <text x="1180" y="455" fill="var(--edge-label)" font-size="20">Yes</text>
+      <rect x="1210" y="560" width="300" height="90" rx="8"
+            fill="var(--node-io)" stroke="var(--node-stroke)" stroke-width="2"/>
+      <text x="1360" y="613" text-anchor="middle" fill="var(--node-fg)" font-size="24">대기방 입장</text>
+
+      <!-- 분기 No → 에러 -->
+      <path d="M810 470 L560 470 L560 560" stroke="var(--edge)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <text x="640" y="455" fill="var(--edge-label)" font-size="20">No</text>
+      <rect x="410" y="560" width="300" height="90" rx="8" stroke-dasharray="6 5"
+            fill="var(--node-error)" stroke="var(--node-error-stroke)" stroke-width="2"/>
+      <text x="560" y="600" text-anchor="middle" fill="var(--node-fg)" font-size="22">오류: 코드 재입력</text>
+      <text x="560" y="626" text-anchor="middle" fill="var(--node-fg)" font-size="18">(최대 3회)</text>
+      <path d="M560 560 L560 355 L810 265" stroke="var(--edge)" stroke-width="2.5" fill="none"
+            stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+
+      <!-- 종료 -->
+      <path d="M1360 650 L1360 720" stroke="var(--edge)" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+      <rect x="1210" y="720" width="300" height="90" rx="45"
+            fill="var(--surface-2)" stroke="var(--node-stroke)" stroke-width="2"/>
+      <text x="1360" y="773" text-anchor="middle" fill="var(--node-fg)" font-size="24" font-weight="600">종료 · 퀴즈 시작</text>
+
+      <!-- ====== 버전 배지 (절대 규칙 6) ====== -->
+      <g id="version-badge">
+        <rect x="1560" y="1010" width="320" height="48" rx="24" fill="var(--badge-bg)"/>
+        <text x="1720" y="1040" text-anchor="middle" fill="var(--badge-fg)"
+              font-family="var(--font-mono)" font-size="20">v0.1.0 · DRAFT · 2026-06-17</text>
+      </g>
+    </svg>
+  </div>
+
+<script>
+  /* ----- 테마 / 모드 토글 ----- */
+  function setTheme(t){ document.body.dataset.theme = t; }
+  function toggleMode(){
+    const b = document.body, btn = document.getElementById('modeBtn');
+    const dark = b.dataset.mode !== 'dark';
+    b.dataset.mode = dark ? 'dark' : 'light';
+    btn.setAttribute('aria-pressed', dark);
+    btn.textContent = dark ? '☀️ Light' : '🌙 Dark';
+  }
+
+  /* ----- 현재 CSS 변수 값을 SVG에 인라인(내보내기용) ----- */
+  function inlineComputedColors(svgClone){
+    const cs = getComputedStyle(document.body);
+    const props = ['--canvas-bg','--surface','--surface-2','--panel','--ink','--node-fg',
+      '--node-stroke','--node-process','--node-io','--node-decision','--node-terminal',
+      '--node-error','--node-error-stroke','--edge','--edge-label','--badge-bg','--badge-fg',
+      '--main-color','--sub-color','--btn-hover-color','--bg-light-color','--theme-deep'];
+    const map = {}; props.forEach(p => map[p] = cs.getPropertyValue(p).trim());
+    // var(--x) 참조를 실제 색으로 치환
+    let s = new XMLSerializer().serializeToString(svgClone);
+    props.forEach(p => {
+      const re = new RegExp('var\\('+p+'\\)','g');
+      s = s.replace(re, map[p] || '#000');
+    });
+    // 폰트 변수도 치환
+    s = s.replace(/var\(--font-kr\)/g, "'HGGGothicssi','Noto Sans KR',sans-serif")
+         .replace(/var\(--font-en\)/g, "'Montserrat',sans-serif")
+         .replace(/var\(--font-mono\)/g, "monospace");
+    return s;
+  }
+
+  function buildExportSVG(){
+    const svg = document.getElementById('flow').cloneNode(true);
+    const bg = getComputedStyle(document.body).getPropertyValue('--canvas-bg').trim() || '#fff';
+    // 배경 사각형 삽입(투명 방지)
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x','0'); rect.setAttribute('y','0');
+    rect.setAttribute('width','1920'); rect.setAttribute('height','1080');
+    rect.setAttribute('fill', bg);
+    svg.insertBefore(rect, svg.firstChild);
+    let s = inlineComputedColors(svg);
+    if(!s.match(/^<svg[^>]+xmlns=/)) s = s.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"');
+    return s;
+  }
+
+  function downloadSVG(){
+    const blob = new Blob([buildExportSVG()], {type:'image/svg+xml'});
+    triggerDownload(URL.createObjectURL(blob), fname('svg','svg'));
+  }
+
+  /* width 기준 PNG (FHD 1920 / QHD 2560 / 4K 3840). 16:9 비율 유지. */
+  function downloadPNG(width){
+    const vbW = 1920, vbH = 1080;            // viewBox와 동기화 필요 시 수정
+    const height = Math.round(width * vbH / vbW);
+    const svgStr = buildExportSVG();
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([svgStr], {type:'image/svg+xml'}));
+    img.onload = function(){
+      const c = document.createElement('canvas');
+      c.width = width; c.height = height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      const label = width>=3840?'4k':(width>=2560?'qhd':'fhd');
+      c.toBlob(b => triggerDownload(URL.createObjectURL(b), fname(label,'png')), 'image/png');
+    };
+    img.onerror = ()=> alert('내보내기 실패: 폰트/CSS 경로를 확인하세요.');
+    img.src = url;
+  }
+
+  function fname(tag, ext){
+    const theme = document.body.dataset.theme||'show';
+    const mode = document.body.dataset.mode||'light';
+    return `flow_v0.1.0_${tag}_${theme}_${mode}.${ext}`; // 버전 포함(절대 규칙 6)
+  }
+  function triggerDownload(href, name){
+    const a = document.createElement('a'); a.href=href; a.download=name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+</script>
+</body>
+</html>

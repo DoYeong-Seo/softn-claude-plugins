@@ -1,0 +1,127 @@
+/* ============================================================
+   QuizN-planning-flow — Theme entry CSS
+   ------------------------------------------------------------
+   quizn-design-system 토큰을 그대로 쓰되 다크/라이트 모드 레이어를
+   더한다. 두 축이 독립적으로 동작한다:
+     body[data-theme=show|board|video|class]  → 브랜드 색
+     body[data-mode=light|dark]               → 표면/텍스트/노드 색
+   사용 전 같은 폴더에 colors_and_type.css 와 fonts/ 폴더를 복사할 것.
+   ============================================================ */
+
+@import url('./colors_and_type.css');
+
+/* ---------- 1. 모드 토큰: 라이트(기본) ---------- */
+:root,
+body[data-mode="light"] {
+  --canvas-bg:     #ffffff;
+  --surface:       #f7f7f7;
+  --surface-2:     #efefef;
+  --panel:         #ffffff;
+  --ink:           #282828;   /* primary text */
+  --ink-sub:       #555555;
+  --ink-mute:      #777777;
+  --line:          #e0e0e0;   /* borders */
+  --line-2:        #d0d0d0;
+
+  /* 흐름도 전용 토큰 */
+  --node-fg:       #282828;
+  --node-stroke:   #c9ccd2;
+  --node-process:  var(--bg-light-color);
+  --node-io:       #eef3ff;
+  --node-decision: var(--sub-color);
+  --node-terminal: var(--main-color);
+  --node-error:    #fff0f0;
+  --node-error-stroke: #e0a3a3;
+  --edge:          #777777;
+  --edge-label:    #555555;
+  --lane-bg:       #fafafa;
+  --lane-line:     #e0e0e0;
+  --badge-bg:      rgba(0,0,0,0.06);
+  --badge-fg:      #555555;
+}
+
+/* ---------- 2. 모드 토큰: 다크 ---------- */
+body[data-mode="dark"] {
+  --canvas-bg:     #16181d;
+  --surface:       #22262e;
+  --surface-2:     #1b1e24;
+  --panel:         #1f232a;
+  --ink:           #f2f3f5;
+  --ink-sub:       #c2c6cd;
+  --ink-mute:      #8b909a;
+  --line:          #333944;
+  --line-2:        #3d4450;
+
+  /* 뉴트럴 재정의 (quizn 기본 토큰 다크화) */
+  --bg:            #16181d;
+  --bg-soft:       #1b1e24;
+  --bg-soft-2:     #22262e;
+  --border:        #333944;
+  --fg:            #f2f3f5;
+  --fg-sub:        #c2c6cd;
+  --fg-mute:       #8b909a;
+  --fg1:           #f2f3f5;
+  --fg2:           #c2c6cd;
+  --fg3:           #8b909a;
+
+  /* 흐름도 전용 토큰 (다크) */
+  --node-fg:       #f2f3f5;
+  --node-stroke:   #454c58;
+  --node-process:  #2a2f3a;
+  --node-io:       #243047;
+  --node-decision: var(--main-color);
+  --node-terminal: var(--main-color);
+  --node-error:    #3a2530;
+  --node-error-stroke: #7a4a55;
+  --edge:          #9aa0aa;
+  --edge-label:    #c2c6cd;
+  --lane-bg:       #1b1e24;
+  --lane-line:     #333944;
+  --badge-bg:      rgba(255,255,255,0.10);
+  --badge-fg:      #c2c6cd;
+}
+
+/* ---------- 3. 시스템 선호 자동 연동 (data-mode 미지정 시) ---------- */
+@media (prefers-color-scheme: dark) {
+  body:not([data-mode]) {
+    --canvas-bg:#16181d; --surface:#22262e; --surface-2:#1b1e24; --panel:#1f232a;
+    --ink:#f2f3f5; --ink-sub:#c2c6cd; --ink-mute:#8b909a; --line:#333944; --line-2:#3d4450;
+    --bg:#16181d; --bg-soft:#1b1e24; --border:#333944; --fg:#f2f3f5; --fg-sub:#c2c6cd;
+    --node-fg:#f2f3f5; --node-stroke:#454c58; --node-process:#2a2f3a; --node-io:#243047;
+    --node-decision:var(--main-color); --node-terminal:var(--main-color);
+    --node-error:#3a2530; --node-error-stroke:#7a4a55;
+    --edge:#9aa0aa; --edge-label:#c2c6cd; --lane-bg:#1b1e24; --lane-line:#333944;
+    --badge-bg:rgba(255,255,255,0.10); --badge-fg:#c2c6cd;
+  }
+}
+
+/* ---------- 4. 기본 페이지 스타일 ---------- */
+html, body { background: var(--canvas-bg); color: var(--ink);
+  transition: background var(--t-theme), color var(--t-theme); }
+body { font-family: var(--font-kr); font-weight: var(--fw-light); margin: 0; }
+
+/* ---------- 5. 흐름도 캔버스/툴바 헬퍼 ---------- */
+.qnp-toolbar {
+  display:flex; flex-wrap:wrap; gap: var(--space-2); align-items:center;
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10;
+}
+.qnp-toolbar .group { display:flex; gap: var(--space-1); align-items:center; }
+.qnp-toolbar .sep { width:1px; height:24px; background: var(--line-2); margin: 0 var(--space-2); }
+.qnp-btn {
+  font-family: var(--font-en); font-size: var(--fs-caption); font-weight: var(--fw-semibold);
+  padding: 8px 14px; border-radius: var(--r-pill); cursor:pointer;
+  border: 1px solid var(--line-2); background: var(--panel); color: var(--ink);
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.qnp-btn:hover { border-color: var(--main-color); }
+.qnp-btn--primary { background: var(--main-color); color:#fff; border-color: var(--main-color); }
+.qnp-btn--primary:hover { background: var(--btn-hover-color); }
+.qnp-btn[aria-pressed="true"] { background: var(--main-color); color:#fff; border-color: var(--main-color); }
+
+.qnp-canvas { padding: var(--space-6) var(--space-7); background: var(--canvas-bg); }
+.qnp-canvas svg { width:100%; height:auto; display:block; background: var(--canvas-bg); }
+
+.qnp-meta { font-family: var(--font-en); font-size: var(--fs-micro); color: var(--ink-mute);
+  text-transform: uppercase; letter-spacing: .04em; }

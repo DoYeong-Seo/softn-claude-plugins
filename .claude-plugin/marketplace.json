@@ -28,6 +28,16 @@
       "name": "peer-bus",
       "source": "./plugins/peer-bus",
       "description": "Claude Code 세션 간 자율 협업 버스 — 계약 본문은 BlogN, 버스는 트리거(포인터)만. 개발자 PC마다 localhost 자체완결 설치(허브 자동 보장+PC별 토큰)로 백엔드↔프론트 세션이 BlogN 계약을 주고받음. mac/linux/WSL2"
+    },
+    {
+      "name": "quizn-architecture-diagram-creator",
+      "source": "./plugins/quizn-architecture-diagram-creator",
+      "description": "QuizN(SoftN) 브랜드 토큰을 입힌 자기완결형 HTML 아키텍처 다이어그램 생성 — 개요·핵심지표 / 서비스 구조(SHOW·BOARD·VIDEO·CLASS) / 데이터 플로·파이프라인 / 시스템 아키텍처 계층의 4개 섹션 고정, SVG 부품 조립, data-theme 테마 전환"
+    },
+    {
+      "name": "quizn-planning-flow",
+      "source": "./plugins/quizn-planning-flow",
+      "description": "SoftN/QuizN 서비스 기획 전반 — 증거 기반 요구 정리 → SVG 흐름도 → 논리 검증·오류 리포팅·대안 → 요청자 질의·수용 → 버전 확정의 강제 루프. quizn-design-system 토큰 + 다크/라이트, FHD~4K PNG/PDF 내보내기, 프로젝트 단위 폴더·버전 표기"
     }
   ]
 }

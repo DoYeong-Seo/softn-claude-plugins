@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[PROJECT_NAME] · Architecture</title>
+<!-- QuizN 토큰을 인라인합니다(산출물 1파일 portability). 토큰을 재정의하지 마세요. -->
+<style>
+:root{
+  /* ===== 서비스 시그니처 색 ===== */
+  --brand-show:#ff6800; --brand-show-sub:#ff8533; --brand-show-deep:#db5800; --brand-show-light:#fff2e8;
+  --brand-board:#02d7c5; --brand-board-sub:#00C1B0; --brand-board-deep:#007E73; --brand-board-light:#f3fffe;
+  --brand-video:#9359E1; --brand-video-sub:#ac8ef8; --brand-video-deep:#7249b7; --brand-video-light:#f5f0ff;
+  --brand-class:#44A2FF; --brand-class-sub:#4f9fee; --brand-class-deep:#3790e9; --brand-class-light:#e7f3ff;
+  /* ===== 테마 토큰(기본 SHOW) — body[data-theme]가 덮어씀 ===== */
+  --main-color:#ff6800; --sub-color:#ff8533; --btn-hover-color:#ff8533; --bg-light-color:#fff2e8; --theme-deep:#db5800;
+  /* ===== 뉴트럴·텍스트 ===== */
+  --bg:#fff; --bg-soft:#f9f9f9; --bg-soft-2:#f7f7f7; --border:#e0e0e0; --border-2:#e6e6e6; --divider:#d0d0d0;
+  --fg1:#282828; --fg2:#555; --fg3:#777; --fg-on-color:#fff; --footer-bg:#3c3c3c;
+  /* ===== 폰트 ===== */
+  --font-kr:'HGGGothicssi','Noto Sans KR','Open Sans',sans-serif;
+  --font-en:'Montserrat','Open Sans',sans-serif;
+  --font-mono:'SF Mono',Consolas,Menlo,monospace;
+  --fw-light:300; --fw-regular:400; --fw-medium:500; --fw-semibold:600; --fw-bold:700; --fw-black:800;
+  /* ===== 라디우스 ===== */
+  --r-sm:4px; --r-md:8px; --r-lg:28px; --r-pill:50px; --r-circle:50%;
+  /* ===== 스페이싱 ===== */
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px;
+  --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
+  /* ===== 그림자 ===== */
+  --shadow-card:0 4px 16px rgba(0,0,0,.08); --shadow-pop:0 8px 28px -12px rgba(0,0,0,.15);
+  --shadow-hover:0 10px 24px -8px var(--main-color); --shadow-modal:0 16px 40px rgba(0,0,0,.18);
+}
+/* 테마 전환 */
+body[data-theme="board"]{--main-color:#02d7c5;--sub-color:#007E73;--btn-hover-color:#00C1B0;--bg-light-color:#f3fffe;--theme-deep:#007E73;}
+body[data-theme="video"]{--main-color:#9359e1;--sub-color:#7b41c9;--btn-hover-color:#ac8ef8;--bg-light-color:#f5f0ff;--theme-deep:#7249b7;}
+body[data-theme="class"]{--main-color:#44a2ff;--sub-color:#3790e9;--btn-hover-color:#4f9fee;--bg-light-color:#e7f3ff;--theme-deep:#3790e9;}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font-kr);font-weight:var(--fw-light);color:var(--fg1);background:var(--bg-soft);line-height:1.6;padding:var(--space-7) var(--space-5);}
+.container{max-width:1280px;margin:0 auto;background:var(--bg);border-radius:var(--r-lg);box-shadow:var(--shadow-card);padding:var(--space-8) var(--space-7);}
+
+/* HEADER */
+.doc-header{text-align:center;margin-bottom:var(--space-8);padding-bottom:var(--space-6);border-bottom:3px solid var(--main-color);}
+.eyebrow{font-family:var(--font-en);font-weight:var(--fw-bold);letter-spacing:.12em;text-transform:uppercase;font-size:13px;color:var(--main-color);}
+h1{font-size:42px;font-weight:var(--fw-black);color:var(--fg1);margin:var(--space-2) 0;}
+.subtitle{color:var(--fg2);font-size:18px;}
+
+/* SECTION */
+.section{margin:var(--space-8) 0;}
+.section-title{display:flex;align-items:center;gap:var(--space-3);font-size:24px;font-weight:var(--fw-bold);color:var(--fg1);margin-bottom:var(--space-5);padding-bottom:var(--space-3);border-bottom:2px solid var(--border);}
+.section-title .dot{width:14px;height:14px;border-radius:var(--r-circle);background:var(--main-color);}
+
+/* KPI METRICS */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-5);}
+.metric{background:var(--bg-light-color);border:1px solid var(--border-2);border-radius:var(--r-md);padding:var(--space-5);text-align:center;}
+.metric .value{font-family:var(--font-en);font-size:40px;font-weight:var(--fw-black);color:var(--main-color);line-height:1.1;}
+.metric .label{margin-top:var(--space-2);color:var(--fg2);font-size:14px;font-weight:var(--fw-medium);}
+
+/* SERVICE MAP */
+.services{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-5);}
+.svc{border-radius:var(--r-md);padding:var(--space-5);color:var(--fg-on-color);box-shadow:var(--shadow-pop);}
+.svc h3{font-family:var(--font-en);font-size:22px;font-weight:var(--fw-bold);}
+.svc .ko{font-size:14px;opacity:.92;margin-bottom:var(--space-3);}
+.svc ul{list-style:none;font-size:13px;}
+.svc li{padding:3px 0;border-top:1px solid rgba(255,255,255,.25);}
+.svc--show{background:linear-gradient(135deg,var(--brand-show-deep),var(--brand-show));}
+.svc--board{background:linear-gradient(135deg,var(--brand-board-deep),var(--brand-board));}
+.svc--video{background:linear-gradient(135deg,var(--brand-video-deep),var(--brand-video));}
+.svc--class{background:linear-gradient(135deg,var(--brand-class-deep),var(--brand-class));}
+
+/* DIAGRAM WRAP */
+.diagram{background:var(--bg-soft-2);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--space-5);overflow-x:auto;}
+.diagram svg{max-width:100%;height:auto;display:block;margin:0 auto;}
+
+/* PIPELINE */
+.pipeline{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-top:var(--space-5);}
+.stage{flex:1;min-width:160px;background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--main-color);border-radius:var(--r-sm);padding:var(--space-4);}
+.stage .n{font-family:var(--font-en);font-weight:var(--fw-bold);color:var(--main-color);font-size:13px;}
+.stage h4{font-size:15px;font-weight:var(--fw-semibold);margin:var(--space-1) 0;}
+.stage p{font-size:13px;color:var(--fg2);}
+
+/* LEGEND */
+.legend{display:flex;flex-wrap:wrap;gap:var(--space-4);margin-top:var(--space-5);font-size:13px;color:var(--fg2);}
+.legend span{display:inline-flex;align-items:center;gap:var(--space-2);}
+.legend i{width:14px;height:14px;border-radius:var(--r-sm);display:inline-block;}
+
+/* FOOTER */
+.doc-footer{margin-top:var(--space-8);padding-top:var(--space-5);border-top:1px solid var(--border);text-align:center;color:var(--fg3);font-size:13px;}
+
+@media(max-width:768px){.container{padding:var(--space-5);}h1{font-size:32px;}}
+</style>
+</head>
+<body data-theme="show">
+<div class="container">
+
+  <!-- ===== 1. 개요 · 핵심지표 ===== -->
+  <header class="doc-header">
+    <div class="eyebrow">SYSTEM ARCHITECTURE</div>
+    <h1>[PROJECT_NAME]</h1>
+    <p class="subtitle">[한 줄 요약 — 무엇을 하는 시스템인가]</p>
+  </header>
+
+  <section class="section">
+    <h2 class="section-title"><span class="dot"></span>핵심 지표</h2>
+    <div class="metrics">
+      <!-- 반복: 메트릭 카드 -->
+      <div class="metric"><div class="value">[값]</div><div class="label">[지표명]</div></div>
+    </div>
+  </section>
+
+  <!-- ===== 2. 서비스 구조 ===== -->
+  <section class="section">
+    <h2 class="section-title"><span class="dot"></span>서비스 구조</h2>
+    <div class="services">
+      <div class="svc svc--show"><h3>SHOW</h3><div class="ko">[서비스 설명]</div><ul><li>[기능]</li></ul></div>
+      <div class="svc svc--board"><h3>BOARD</h3><div class="ko">[서비스 설명]</div><ul><li>[기능]</li></ul></div>
+      <div class="svc svc--video"><h3>VIDEO</h3><div class="ko">[서비스 설명]</div><ul><li>[기능]</li></ul></div>
+      <div class="svc svc--class"><h3>CLASS</h3><div class="ko">[서비스 설명]</div><ul><li>[기능]</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ===== 3. 데이터 플로 · 파이프라인 ===== -->
+  <section class="section">
+    <h2 class="section-title"><span class="dot"></span>데이터 플로 &amp; 파이프라인</h2>
+    <div class="diagram">
+      <!-- svg_components.html의 데이터소스/처리/출력 박스 + 화살표 조립 -->
+      <svg viewBox="0 0 800 280"><!-- DATA FLOW SVG --></svg>
+    </div>
+    <div class="pipeline">
+      <div class="stage"><div class="n">STAGE 1</div><h4>[단계명]</h4><p>[설명]</p></div>
+    </div>
+  </section>
+
+  <!-- ===== 4. 시스템 아키텍처 계층 ===== -->
+  <section class="section">
+    <h2 class="section-title"><span class="dot"></span>시스템 아키텍처 계층</h2>
+    <div class="diagram">
+      <!-- svg_components.html의 계층형 컴포넌트 조립 -->
+      <svg viewBox="0 0 800 480"><!-- LAYERED ARCHITECTURE SVG --></svg>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--brand-class)"></i>데이터/입력</span>
+      <span><i style="background:var(--brand-show)"></i>처리/변환</span>
+      <span><i style="background:var(--brand-video)"></i>AI/분석</span>
+      <span><i style="background:var(--brand-board)"></i>출력/서비스</span>
+    </div>
+  </section>
+
+  <footer class="doc-footer">[PROJECT_NAME] Architecture · Generated with QuizN Design System</footer>
+</div>
+</body>
+</html>
