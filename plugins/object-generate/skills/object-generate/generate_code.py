@@ -806,7 +806,7 @@ def generate_basic_dao_sql(module: str, submodule: str, table_name: str, table_c
 
 <mapper namespace="{dao_name}">
 
-    <select id="{dao_name}.findByPrimarykey" parameterType="{full_vo_type}" resultType="{full_vo_type}">
+    <select id="findByPrimarykey" parameterType="{full_vo_type}" resultType="{full_vo_type}">
         /*
             SQL_ID : {dao_name}.findByPrimarykey
             설 명 : Primarykey로 단일 정보를 조회한다.
@@ -839,7 +839,7 @@ def generate_basic_dao_sql(module: str, submodule: str, table_name: str, table_c
 
     xml += f"""    </select>
 
-    <insert id="{dao_name}.insert" parameterType="{full_vo_type}" >
+    <insert id="insert" parameterType="{full_vo_type}" >
         /*
             SQL ID : {dao_name}.insert
             설 명 : 단일행 정보를 등록합니다.
@@ -876,7 +876,7 @@ def generate_basic_dao_sql(module: str, submodule: str, table_name: str, table_c
     xml += "    </insert> \n\n"
 
     # UPDATE
-    xml += f"""    <update id="{dao_name}.update" parameterType="{full_vo_type}" >
+    xml += f"""    <update id="update" parameterType="{full_vo_type}" >
         /*
             SQL ID : {dao_name}.update
             설 명 : 단일행 정보를 수정합니다.
@@ -922,7 +922,7 @@ def generate_basic_dao_sql(module: str, submodule: str, table_name: str, table_c
     xml += "    </update> \n\n"
 
     # DELETE
-    xml += f"""    <delete id="{dao_name}.delete" parameterType="{full_vo_type}" >
+    xml += f"""    <delete id="delete" parameterType="{full_vo_type}" >
         /*
             SQL ID : {dao_name}.delete
             설 명 : 단일행 정보를 삭제합니다.
@@ -964,7 +964,7 @@ def generate_generated_dao_sql(module: str, submodule: str, table_name: str, tab
 
 <mapper namespace="{dao_name}">
 
-    <sql id="{dao_name}.selectQuery">
+    <sql id="selectQuery">
         <![CDATA[
         SELECT
 """
@@ -982,7 +982,7 @@ def generate_generated_dao_sql(module: str, submodule: str, table_name: str, tab
         ]]>
     </sql>
 
-    <sql id="{dao_name}.listFieldQuery">
+    <sql id="listFieldQuery">
         <![CDATA[
         SELECT @rownum := @rownum+1 as rowNum
 """
@@ -997,14 +997,14 @@ def generate_generated_dao_sql(module: str, submodule: str, table_name: str, tab
 
 """
 
-    xml += f"""    <sql id="{dao_name}.listFromQuery">
+    xml += f"""    <sql id="listFromQuery">
         <![CDATA[
           FROM
                {table_name.upper()} A, (SELECT @rownum:=0) TMP
         ]]>
     </sql>
 
-    <sql id="{dao_name}.listWhereQuery">
+    <sql id="listWhereQuery">
         <![CDATA[
 """
 
@@ -1023,45 +1023,45 @@ def generate_generated_dao_sql(module: str, submodule: str, table_name: str, tab
     xml += """        ]]>
     </sql>
 
-    <sql id=\"""" + dao_name + """.listOrderQuery">
+    <sql id="listOrderQuery">
         <![CDATA[
         ]]>
     </sql>
 
-    <select id=\"""" + dao_name + """.findList" parameterType=\"""" + full_vo_type + """\" resultType=\"""" + full_vo_type + """\">
+    <select id="findList" parameterType=\"""" + full_vo_type + """\" resultType=\"""" + full_vo_type + """\">
         /*
          SQL ID : """ + dao_name + """.findList
          설  명 : """ + table_comment + """의 전체 목록
         */
-        <include refid=\"""" + dao_name + """.listFieldQuery"/>
-        <include refid=\"""" + dao_name + """.listFromQuery"/>
-        <include refid=\"""" + dao_name + """.listWhereQuery"/>
-        <include refid=\"""" + dao_name + """.listOrderQuery"/>
+        <include refid="listFieldQuery"/>
+        <include refid="listFromQuery"/>
+        <include refid="listWhereQuery"/>
+        <include refid="listOrderQuery"/>
     </select>
 
-    <select id=\"""" + dao_name + """.findPageingList" parameterType=\"""" + full_vo_type + """\" resultType=\"""" + full_vo_type + """\">
+    <select id="findPageingList" parameterType=\"""" + full_vo_type + """\" resultType=\"""" + full_vo_type + """\">
         /*
          SQL ID : """ + dao_name + """.findPageingList
          설  명 : """ + table_comment + """의 페이징 목록
         */
-        <include refid=\"""" + dao_name + """.listFieldQuery"/>
-        <include refid=\"""" + dao_name + """.listFromQuery"/>
-        <include refid=\"""" + dao_name + """.listWhereQuery"/>
-        <include refid=\"""" + dao_name + """.listOrderQuery"/>
+        <include refid="listFieldQuery"/>
+        <include refid="listFromQuery"/>
+        <include refid="listWhereQuery"/>
+        <include refid="listOrderQuery"/>
         LIMIT #{firstIndex}, #{listScale}
     </select>
 
-    <select id=\"""" + dao_name + """.count" parameterType=\"""" + full_vo_type + """\" resultType="Integer">
+    <select id="count" parameterType=\"""" + full_vo_type + """\" resultType="Integer">
         /*
          SQL ID : """ + dao_name + """.count
          설  명 : """ + table_comment + """의 검색 카운트
         */
         SELECT COUNT(*)
-        <include refid=\"""" + dao_name + """.listFromQuery"/>
-        <include refid=\"""" + dao_name + """.listWhereQuery"/>
+        <include refid="listFromQuery"/>
+        <include refid="listWhereQuery"/>
     </select>
 
-    <select id=\"""" + dao_name + """.findKey" parameterType=\"""" + full_vo_type + """\" resultType=\"""" + key_return_type + """\">
+    <select id="findKey" parameterType=\"""" + full_vo_type + """\" resultType=\"""" + key_return_type + """\">
         /*
          SQL ID : """ + dao_name + """.findKey
          설  명 : """ + table_comment + """의 키 검색
